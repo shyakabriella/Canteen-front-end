@@ -76,7 +76,7 @@ const API_BASE_URL = removeTrailingSlash(
 
 const APP_URL = removeTrailingSlash(
   process.env.NEXT_PUBLIC_APP_URL ??
-    'http://localhost:3000',
+    'https://www.canabera.asyncafrica.com',
 )
 
 const emptyForm: TableFormState = {
@@ -797,23 +797,16 @@ export default function TableRecordsPage() {
   function getTableQrValue(
     table: CanteenTable,
   ): string {
-    if (table.qr_url) {
-      return table.qr_url
-    }
-
-    const origin =
-      APP_URL ||
-      (
-        typeof window !== 'undefined'
-          ? window.location.origin
-          : ''
-      )
-
     const token =
       table.qr_token ||
       String(table.id)
 
-    return `${origin}/table/${encodeURIComponent(
+    /*
+     * Always build the QR destination from NEXT_PUBLIC_APP_URL.
+     * This prevents old API values such as localhost URLs from
+     * being encoded in newly displayed or downloaded QR codes.
+     */
+    return `${APP_URL}/table/${encodeURIComponent(
       token,
     )}`
   }
