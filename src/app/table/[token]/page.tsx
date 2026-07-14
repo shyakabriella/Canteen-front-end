@@ -1,22 +1,24 @@
 'use client'
 
-import Link from 'next/link'
-import { useParams } from 'next/navigation'
 import {
-  AlertTriangle,
+  ArrowRight,
+  BellRing,
   CheckCircle2,
-  Clock3,
-  LayoutGrid,
+  CircleAlert,
+  CreditCard,
   LoaderCircle,
   MapPin,
-  QrCode,
+  RefreshCw,
+  ShoppingBag,
   Users,
   UtensilsCrossed,
+  XCircle,
 } from 'lucide-react'
-import {
-  useEffect,
-  useState,
-} from 'react'
+import type { LucideIcon } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState } from 'react'
+
+type UnknownRecord = Record<string, unknown>
 
 type TableStatus =
   | 'available'
@@ -24,7 +26,13 @@ type TableStatus =
   | 'reserved'
   | 'inactive'
 
-interface PublicTable {
+type DeviceAction =
+  | 'order'
+  | 'call'
+  | 'pay'
+  | 'cancel'
+
+interface PublicCanteenTable {
   id: number | string
   table_number: string
   name: string
@@ -32,18 +40,23 @@ interface PublicTable {
   capacity: number
   status: TableStatus
   description: string
+  qr_token: string
 }
 
-type UnknownRecord = Record<string, unknown>
-
-const API_BASE_URL = (
+const API_BASE_URL = removeTrailingSlash(
   process.env.NEXT_PUBLIC_API_BASE_URL ??
-  'http://localhost:8000/api'
-).replace(/\/+$/, '')
+    'https://www.canteen.asyncafrica.com/api',
+)
 
-function asRecord(
-  value: unknown,
-): UnknownRecord {
+const APP_NAME =
+  process.env.NEXT_PUBLIC_APP_NAME ??
+  'Smart Canteen'
+
+function removeTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, '')
+}
+
+function asRecord(value: unknown): UnknownRecord {
   if (
     typeof value === 'object' &&
     value !== null &&
@@ -55,9 +68,7 @@ function asRecord(
   return {}
 }
 
-function valueFrom(
-  ...values: unknown[]
-): string {
+function stringValue(...values: unknown[]): string {
   const found = values.find(
     (value) =>
       value !== undefined &&
@@ -65,14 +76,21 @@ function valueFrom(
       String(value).trim() !== '',
   )
 
-  return found === undefined
-    ? ''
-    : String(found)
+  return found === undefined ? '' : String(found)
 }
 
-function normalizeStatus(
+function numberValue(
   value: unknown,
-): TableStatus {
+  fallback = 0,
+): number {
+  const parsed = Number(value)
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : fallback
+}
+
+function normalizeStatus(value: unknown): TableStatus {
   const status = String(value ?? '')
     .trim()
     .toLowerCase()
@@ -91,41 +109,64 @@ function normalizeStatus(
 
 function normalizeTable(
   value: unknown,
-): PublicTable {
+): PublicCanteenTable {
   const record = asRecord(value)
 
-  const tableNumber = valueFrom(
+  const tableNumber = stringValue(
     record.table_number,
     record.table_no,
     record.number,
   )
 
   return {
-    id: valueFrom(record.id) || tableNumber,
-    table_number: tableNumber,
+    id:
+      stringValue(record.id) ||
+      tableNumber,
+
+    table_number:
+      tableNumber || 'Unknown',
+
     name:
-      valueFrom(
+      stringValue(
         record.name,
         record.table_name,
-      ) || `Table ${tableNumber}`,
-    location: valueFrom(
-      record.location,
-      record.area,
-      record.section,
-    ),
+      ) ||
+      `Table ${tableNumber}`,
+
+    location:
+      stringValue(
+        record.location,
+        record.area,
+        record.section,
+      ) || 'Canteen',
+
     capacity:
-      Number(record.capacity) || 1,
-    status: normalizeStatus(record.status),
-    description: valueFrom(
-      record.description,
-      record.notes,
-    ),
+      numberValue(
+        record.capacity,
+        1,
+      ),
+
+    status:
+      normalizeStatus(record.status),
+
+    description:
+      stringValue(
+        record.description,
+        record.notes,
+      ),
+
+    qr_token:
+      stringValue(
+        record.qr_token,
+        record.public_token,
+        record.token,
+      ),
   }
 }
 
 function extractTable(
   payload: unknown,
-): PublicTable {
+): PublicCanteenTable {
   const root = asRecord(payload)
   const data = asRecord(root.data)
 
@@ -133,6 +174,7 @@ function extractTable(
     data.data,
     root.data,
     root.table,
+    root.record,
     payload,
   ]
 
@@ -141,74 +183,53 @@ function extractTable(
 
     if (
       record.id !== undefined ||
-      record.table_number !== undefined
+      record.table_number !== undefined ||
+      record.table_no !== undefined
     ) {
       return normalizeTable(record)
     }
   }
 
   throw new Error(
-    'Table information was not found.',
+    'The table information was not found.',
   )
 }
 
-const statusSettings: Record<
-  TableStatus,
-  {
-    label: string
-    description: string
-    className: string
-    icon: typeof CheckCircle2
+function formatStatus(status: string): string {
+  return status
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+    .replace(/\b\w/g, (letter) =>
+      letter.toUpperCase(),
+    )
+}
+
+function getStatusClass(
+  status: TableStatus,
+): string {
+  switch (status) {
+    case 'available':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+
+    case 'occupied':
+      return 'border-amber-200 bg-amber-50 text-amber-700'
+
+    case 'reserved':
+      return 'border-blue-200 bg-blue-50 text-blue-700'
+
+    default:
+      return 'border-slate-200 bg-slate-100 text-slate-600'
   }
-> = {
-  available: {
-    label: 'Available',
-    description:
-      'This table is currently available.',
-    className:
-      'border-emerald-200 bg-emerald-50 text-emerald-700',
-    icon: CheckCircle2,
-  },
-
-  occupied: {
-    label: 'Occupied',
-    description:
-      'This table is currently being used.',
-    className:
-      'border-amber-200 bg-amber-50 text-amber-700',
-    icon: Users,
-  },
-
-  reserved: {
-    label: 'Reserved',
-    description:
-      'This table has already been reserved.',
-    className:
-      'border-blue-200 bg-blue-50 text-blue-700',
-    icon: Clock3,
-  },
-
-  inactive: {
-    label: 'Inactive',
-    description:
-      'This table is currently unavailable.',
-    className:
-      'border-slate-200 bg-slate-100 text-slate-700',
-    icon: AlertTriangle,
-  },
 }
 
 export default function PublicTablePage() {
-  const params = useParams()
+  const params = useParams<{ token: string }>()
+  const router = useRouter()
 
-  const tokenValue = params.token
-
-  const token = Array.isArray(tokenValue)
-    ? tokenValue[0]
-    : String(tokenValue ?? '')
+  const token = String(params?.token ?? '')
 
   const [table, setTable] =
-    useState<PublicTable | null>(null)
+    useState<PublicCanteenTable | null>(null)
 
   const [isLoading, setIsLoading] =
     useState(true)
@@ -216,11 +237,16 @@ export default function PublicTablePage() {
   const [errorMessage, setErrorMessage] =
     useState('')
 
-  useEffect(() => {
-    async function loadTable() {
+  const [
+    selectedAction,
+    setSelectedAction,
+  ] = useState<DeviceAction | null>(null)
+
+  const fetchTable = useCallback(
+    async () => {
       if (!token) {
         setErrorMessage(
-          'The table QR code is invalid.',
+          'The table QR token is missing.',
         )
         setIsLoading(false)
         return
@@ -235,9 +261,11 @@ export default function PublicTablePage() {
             token,
           )}`,
           {
+            method: 'GET',
             headers: {
               Accept: 'application/json',
             },
+            credentials: 'omit',
             cache: 'no-store',
           },
         )
@@ -247,15 +275,14 @@ export default function PublicTablePage() {
           .catch(() => null)
 
         if (!response.ok) {
-          const responseRecord =
-            asRecord(payload)
+          const record = asRecord(payload)
 
           throw new Error(
-            valueFrom(
-              responseRecord.message,
-              responseRecord.error,
+            stringValue(
+              record.message,
+              record.error,
             ) ||
-              'This table QR code is invalid or no longer active.',
+              `Unable to load table. Status ${response.status}.`,
           )
         }
 
@@ -264,197 +291,375 @@ export default function PublicTablePage() {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : 'Unable to load table information.',
+            : 'Unable to load this table.',
         )
       } finally {
         setIsLoading(false)
       }
+    },
+    [token],
+  )
+
+  useEffect(() => {
+    void fetchTable()
+  }, [fetchTable])
+
+  function rememberTable() {
+    if (
+      typeof window === 'undefined' ||
+      !table
+    ) {
+      return
     }
 
-    void loadTable()
-  }, [token])
+    window.localStorage.setItem(
+      'selected_canteen_table',
+      JSON.stringify({
+        id: table.id,
+        table_number:
+          table.table_number,
+        name: table.name,
+        location: table.location,
+        qr_token:
+          table.qr_token || token,
+      }),
+    )
+  }
+
+  function handleOrder() {
+    rememberTable()
+    setSelectedAction('order')
+
+    window.setTimeout(() => {
+      router.push('/login')
+    }, 450)
+  }
+
+  function handlePay() {
+    rememberTable()
+    setSelectedAction('pay')
+
+    window.setTimeout(() => {
+      router.push('/login')
+    }, 450)
+  }
+
+  function handleCall() {
+    setSelectedAction('call')
+  }
+
+  function handleCancel() {
+    setSelectedAction('cancel')
+
+    window.setTimeout(() => {
+      setSelectedAction(null)
+    }, 900)
+  }
 
   if (isLoading) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-slate-100 p-4">
-        <div className="text-center">
-          <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-indigo-600" />
+      <main className="flex min-h-dvh items-center justify-center bg-[radial-gradient(circle_at_top,#1e3a5f_0%,#07111f_42%,#020617_100%)] px-5">
+        <div className="text-center text-white">
+          <LoaderCircle className="mx-auto h-12 w-12 animate-spin text-cyan-300" />
 
-          <p className="mt-4 font-semibold text-slate-700">
-            Loading table information...
+          <p className="mt-4 text-sm font-semibold tracking-wide text-slate-200">
+            Loading table device...
           </p>
         </div>
       </main>
     )
   }
 
-  if (errorMessage || !table) {
+  if (
+    errorMessage ||
+    !table
+  ) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-slate-100 p-4">
-        <div className="w-full max-w-md rounded-3xl border border-red-200 bg-white p-8 text-center shadow-xl">
-          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-100 text-red-700">
-            <AlertTriangle className="h-8 w-8" />
-          </span>
+      <main className="flex min-h-dvh items-center justify-center bg-slate-950 px-5 py-10">
+        <div className="w-full max-w-md rounded-3xl border border-red-400/20 bg-white p-7 text-center shadow-2xl">
+          <CircleAlert className="mx-auto h-14 w-14 text-red-500" />
 
-          <h1 className="mt-5 text-2xl font-extrabold text-slate-950">
-            Table Not Found
+          <h1 className="mt-4 text-2xl font-extrabold text-slate-950">
+            Table unavailable
           </h1>
 
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            {errorMessage}
+            {errorMessage ||
+              'This table could not be found.'}
           </p>
 
-          <Link
-            href="/"
-            className="mt-6 inline-flex h-12 items-center justify-center rounded-xl bg-indigo-600 px-6 text-sm font-bold text-white"
+          <button
+            type="button"
+            onClick={() => void fetchTable()}
+            className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-sm font-bold text-white transition hover:bg-blue-700"
           >
-            Return Home
-          </Link>
+            <RefreshCw className="h-5 w-5" />
+            Try Again
+          </button>
         </div>
       </main>
     )
   }
 
-  const status =
-    statusSettings[table.status]
-
-  const StatusIcon = status.icon
-
   return (
-    <main className="min-h-dvh bg-gradient-to-b from-indigo-700 via-indigo-600 to-slate-100 px-4 py-8">
-      <div className="mx-auto w-full max-w-lg">
-        <div className="mb-6 flex items-center justify-center gap-3 text-white">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-indigo-700 shadow-lg">
-            <UtensilsCrossed className="h-7 w-7" />
-          </span>
+    <main className="min-h-dvh overflow-hidden bg-[radial-gradient(circle_at_top,#174878_0%,#07111f_42%,#020617_100%)] px-4 py-7 sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-5xl">
+        <header className="mb-7 text-center text-white">
+          <div className="mx-auto flex w-fit items-center gap-3 rounded-full border border-white/15 bg-white/10 px-4 py-2 backdrop-blur">
+            <UtensilsCrossed className="h-5 w-5 text-cyan-300" />
 
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-100">
-              Smart Canteen
-            </p>
-
-            <p className="text-lg font-extrabold">
-              Table Information
-            </p>
+            <span className="text-sm font-extrabold uppercase tracking-[0.16em]">
+              {APP_NAME}
+            </span>
           </div>
-        </div>
 
-        <div className="overflow-hidden rounded-[30px] bg-white shadow-2xl">
-          <div className="bg-slate-950 px-6 py-8 text-center text-white">
-            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600">
-              <LayoutGrid className="h-8 w-8" />
+          <h1 className="mt-5 text-3xl font-black sm:text-4xl">
+            {table.name}
+          </h1>
+
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-sm">
+            <span
+              className={`rounded-full border px-3 py-1 font-bold ${getStatusClass(
+                table.status,
+              )}`}
+            >
+              {formatStatus(table.status)}
             </span>
 
-            <p className="mt-5 text-sm font-bold uppercase tracking-[0.2em] text-indigo-300">
-              Table{' '}
-              {table.table_number}
+            <span className="flex items-center gap-2 text-slate-200">
+              <MapPin className="h-4 w-4" />
+              {table.location}
+            </span>
+
+            <span className="flex items-center gap-2 text-slate-200">
+              <Users className="h-4 w-4" />
+              {table.capacity} seats
+            </span>
+          </div>
+        </header>
+
+        <section className="relative mx-auto aspect-square w-full max-w-[650px] rounded-full bg-[radial-gradient(circle_at_48%_28%,#475569_0%,#111827_36%,#020617_72%)] p-[14px] shadow-[0_45px_110px_rgba(0,0,0,0.72),inset_0_4px_12px_rgba(255,255,255,0.16)] sm:p-[20px]">
+          <div className="h-full w-full rounded-full border-[8px] border-slate-300/70 bg-gradient-to-br from-slate-200 via-slate-500 to-slate-900 p-[5px] shadow-[inset_0_0_0_3px_rgba(255,255,255,0.3)] sm:border-[11px]">
+            <div className="relative h-full w-full overflow-hidden rounded-full border border-white/20 bg-[radial-gradient(circle_at_50%_45%,#1f2937_0%,#0f172a_42%,#020617_82%)] shadow-[inset_0_0_70px_rgba(0,0,0,0.75)]">
+              <div className="pointer-events-none absolute left-[17%] top-[17%] h-[12%] w-[42%] rotate-[-25deg] rounded-full bg-white/10 blur-xl" />
+
+              <div className="absolute left-1/2 top-[4.5%] -translate-x-1/2">
+                <DeviceButton
+                  label="Pay"
+                  icon={CreditCard}
+                  className="border-yellow-200 bg-yellow-400 text-slate-950 shadow-[0_12px_30px_rgba(250,204,21,0.35)] hover:bg-yellow-300"
+                  onClick={handlePay}
+                  active={
+                    selectedAction ===
+                    'pay'
+                  }
+                />
+              </div>
+
+              <div className="absolute right-[4.5%] top-1/2 -translate-y-1/2">
+                <DeviceButton
+                  label="Cancel"
+                  icon={XCircle}
+                  className="border-rose-200 bg-amber-300 text-slate-950 shadow-[0_12px_30px_rgba(251,191,36,0.3)] hover:bg-amber-200"
+                  onClick={handleCancel}
+                  active={
+                    selectedAction ===
+                    'cancel'
+                  }
+                />
+              </div>
+
+              <div className="absolute bottom-[4.5%] left-1/2 -translate-x-1/2">
+                <DeviceButton
+                  label="Order"
+                  icon={ShoppingBag}
+                  className="border-lime-200 bg-lime-500 text-slate-950 shadow-[0_12px_30px_rgba(132,204,22,0.35)] hover:bg-lime-400"
+                  onClick={handleOrder}
+                  active={
+                    selectedAction ===
+                    'order'
+                  }
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCall}
+                className={`absolute left-1/2 top-1/2 flex h-28 w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border-[5px] border-slate-300 bg-white text-slate-950 shadow-[0_18px_45px_rgba(0,0,0,0.55),inset_0_0_0_3px_rgba(15,23,42,0.08)] transition duration-200 hover:scale-105 active:scale-95 sm:h-36 sm:w-36 ${
+                  selectedAction ===
+                  'call'
+                    ? 'scale-105 ring-8 ring-cyan-400/35'
+                    : ''
+                }`}
+              >
+                <BellRing className="h-7 w-7 text-blue-700 sm:h-9 sm:w-9" />
+
+                <span className="mt-1 text-xl font-black sm:text-2xl">
+                  Call
+                </span>
+
+                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:text-xs">
+                  Staff
+                </span>
+              </button>
+
+              <div className="pointer-events-none absolute left-[8%] top-1/2 -translate-y-1/2 -rotate-90 text-center">
+                <p className="text-[10px] font-black uppercase tracking-[0.34em] text-white/35 sm:text-xs">
+                  Table {table.table_number}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto mt-7 max-w-2xl">
+          {selectedAction ? (
+            <ActionMessage
+              action={selectedAction}
+              tableNumber={
+                table.table_number
+              }
+            />
+          ) : (
+            <div className="rounded-3xl border border-white/10 bg-white/10 px-5 py-4 text-center text-sm leading-6 text-slate-200 backdrop-blur">
+              Select an action on the table
+              device. Use{' '}
+              <strong className="text-white">
+                Order
+              </strong>{' '}
+              to start ordering,{' '}
+              <strong className="text-white">
+                Pay
+              </strong>{' '}
+              to continue to payment, or{' '}
+              <strong className="text-white">
+                Call
+              </strong>{' '}
+              for staff assistance.
+            </div>
+          )}
+
+          {table.description && (
+            <p className="mt-4 text-center text-sm leading-6 text-slate-400">
+              {table.description}
             </p>
-
-            <h1 className="mt-2 text-3xl font-extrabold">
-              {table.name}
-            </h1>
-          </div>
-
-          <div className="p-6">
-            <div
-              className={`rounded-2xl border p-4 ${status.className}`}
-            >
-              <div className="flex items-center gap-3">
-                <StatusIcon className="h-6 w-6 shrink-0" />
-
-                <div>
-                  <p className="font-extrabold">
-                    {status.label}
-                  </p>
-
-                  <p className="mt-1 text-sm">
-                    {status.description}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <InformationCard
-                icon={MapPin}
-                label="Location"
-                value={
-                  table.location ||
-                  'Canteen area'
-                }
-              />
-
-              <InformationCard
-                icon={Users}
-                label="Capacity"
-                value={`${table.capacity} people`}
-              />
-
-              <InformationCard
-                icon={QrCode}
-                label="Table Number"
-                value={table.table_number}
-              />
-
-              <InformationCard
-                icon={LayoutGrid}
-                label="Current Status"
-                value={status.label}
-              />
-            </div>
-
-            {table.description && (
-              <div className="mt-6 rounded-2xl bg-slate-50 p-5">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  About this table
-                </p>
-
-                <p className="mt-2 text-sm leading-6 text-slate-700">
-                  {table.description}
-                </p>
-              </div>
-            )}
-
-            <div className="mt-6 rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-center">
-              <QrCode className="mx-auto h-6 w-6 text-indigo-700" />
-
-              <p className="mt-2 text-sm font-bold text-indigo-800">
-                QR code verified successfully
-              </p>
-
-              <p className="mt-1 text-xs leading-5 text-indigo-600">
-                You are viewing the official
-                information for this canteen
-                table.
-              </p>
-            </div>
-          </div>
-        </div>
+          )}
+        </section>
       </div>
     </main>
   )
 }
 
-function InformationCard({
-  icon: Icon,
+function DeviceButton({
   label,
-  value,
+  icon: Icon,
+  className,
+  onClick,
+  active,
 }: {
-  icon: typeof MapPin
   label: string
-  value: string
+  icon: LucideIcon
+  className: string
+  onClick: () => void
+  active: boolean
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 p-4">
-      <Icon className="h-5 w-5 text-indigo-600" />
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-20 w-20 flex-col items-center justify-center rounded-full border-[4px] font-black transition duration-200 hover:scale-105 active:scale-95 sm:h-24 sm:w-24 md:h-28 md:w-28 ${
+        active
+          ? 'scale-105 ring-8 ring-white/20'
+          : ''
+      } ${className}`}
+    >
+      <Icon className="h-5 w-5 sm:h-7 sm:w-7" />
 
-      <p className="mt-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+      <span className="mt-1 text-sm sm:text-base">
         {label}
-      </p>
+      </span>
+    </button>
+  )
+}
 
-      <p className="mt-1 font-extrabold text-slate-950">
-        {value}
-      </p>
+function ActionMessage({
+  action,
+  tableNumber,
+}: {
+  action: DeviceAction
+  tableNumber: string
+}) {
+  const config: Record<
+    DeviceAction,
+    {
+      title: string
+      message: string
+      icon: LucideIcon
+      className: string
+    }
+  > = {
+    order: {
+      title: 'Opening food ordering',
+      message:
+        `Table ${tableNumber} has been selected. Redirecting to sign in.`,
+      icon: ShoppingBag,
+      className:
+        'border-lime-400/30 bg-lime-400/10 text-lime-100',
+    },
+
+    pay: {
+      title: 'Opening payment',
+      message:
+        `Table ${tableNumber} has been selected. Redirecting to sign in.`,
+      icon: CreditCard,
+      className:
+        'border-yellow-400/30 bg-yellow-400/10 text-yellow-100',
+    },
+
+    call: {
+      title: 'Call Staff selected',
+      message:
+        `Staff assistance was selected for Table ${tableNumber}. Connect this action to your staff-call API when the endpoint is ready.`,
+      icon: BellRing,
+      className:
+        'border-cyan-400/30 bg-cyan-400/10 text-cyan-100',
+    },
+
+    cancel: {
+      title: 'Action cancelled',
+      message:
+        'No order or payment action was started.',
+      icon: CheckCircle2,
+      className:
+        'border-slate-300/20 bg-white/10 text-slate-100',
+    },
+  }
+
+  const current = config[action]
+  const Icon = current.icon
+
+  return (
+    <div
+      className={`flex items-start gap-4 rounded-3xl border px-5 py-4 backdrop-blur ${current.className}`}
+    >
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+        <Icon className="h-6 w-6" />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <h2 className="font-extrabold">
+          {current.title}
+        </h2>
+
+        <p className="mt-1 text-sm leading-6 opacity-90">
+          {current.message}
+        </p>
+      </div>
+
+      {(action === 'order' ||
+        action === 'pay') && (
+        <ArrowRight className="mt-3 h-5 w-5 animate-pulse" />
+      )}
     </div>
   )
 }
