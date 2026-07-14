@@ -11,6 +11,8 @@ import {
   RefreshCw,
   ShoppingBag,
   UtensilsCrossed,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -346,6 +348,158 @@ function urgencyClass(
   return ''
 }
 
+
+type BrowserWindowWithWebkitAudio =
+  typeof window & {
+    webkitAudioContext?:
+      typeof AudioContext
+  }
+
+function createAudioContext():
+  | AudioContext
+  | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const browserWindow =
+    window as BrowserWindowWithWebkitAudio
+
+  const AudioContextClass =
+    window.AudioContext ??
+    browserWindow.webkitAudioContext
+
+  if (!AudioContextClass) {
+    return null
+  }
+
+  return new AudioContextClass()
+}
+
+function scheduleTone(
+  context: AudioContext,
+  frequency: number,
+  startAt: number,
+  duration: number,
+  volume = 0.2,
+) {
+  const oscillator =
+    context.createOscillator()
+
+  const gain = context.createGain()
+
+  oscillator.type = 'sine'
+
+  oscillator.frequency.setValueAtTime(
+    frequency,
+    startAt,
+  )
+
+  gain.gain.setValueAtTime(
+    0.0001,
+    startAt,
+  )
+
+  gain.gain.exponentialRampToValueAtTime(
+    volume,
+    startAt + 0.025,
+  )
+
+  gain.gain.exponentialRampToValueAtTime(
+    0.0001,
+    startAt + duration,
+  )
+
+  oscillator.connect(gain)
+  gain.connect(context.destination)
+
+  oscillator.start(startAt)
+  oscillator.stop(
+    startAt + duration + 0.03,
+  )
+}
+
+function playActionSound(
+  context: AudioContext,
+  action: TableAction,
+  offset = 0,
+) {
+  const start =
+    context.currentTime + offset
+
+  if (action === 'call') {
+    scheduleTone(
+      context,
+      880,
+      start,
+      0.18,
+      0.25,
+    )
+
+    scheduleTone(
+      context,
+      1046.5,
+      start + 0.22,
+      0.18,
+      0.25,
+    )
+
+    scheduleTone(
+      context,
+      1318.5,
+      start + 0.44,
+      0.26,
+      0.28,
+    )
+
+    return
+  }
+
+  if (action === 'order') {
+    scheduleTone(
+      context,
+      659.25,
+      start,
+      0.22,
+      0.23,
+    )
+
+    scheduleTone(
+      context,
+      987.77,
+      start + 0.26,
+      0.3,
+      0.25,
+    )
+
+    return
+  }
+
+  scheduleTone(
+    context,
+    523.25,
+    start,
+    0.18,
+    0.22,
+  )
+
+  scheduleTone(
+    context,
+    659.25,
+    start + 0.2,
+    0.18,
+    0.22,
+  )
+
+  scheduleTone(
+    context,
+    783.99,
+    start + 0.4,
+    0.32,
+    0.25,
+  )
+}
+
 export default function TableActivityPage() {
   const [events, setEvents] = useState<
     TableActionEvent[]
@@ -382,6 +536,79 @@ export default function TableActivityPage() {
 
   const hasLoadedRef =
     useRef(false)
+
+  const audioContextRef =
+    useRef<AudioContext | null>(null)
+
+  const [soundEnabled, setSoundEnabled] =
+    useState(false)
+
+  const [soundNotice, setSoundNotice] =
+    useState(
+      'Touch Enable Sound once on this TV.',
+    )
+
+  const playIncomingEventSounds =
+    useCallback(
+      async (
+        incomingEvents:
+          TableActionEvent[],
+      ) => {
+        if (
+          !soundEnabled ||
+          incomingEvents.length === 0
+        ) {
+          return
+        }
+
+        let context =
+          audioContextRef.current
+
+        if (!context) {
+          context =
+            createAudioContext()
+
+          audioContextRef.current =
+            context
+        }
+
+        if (!context) {
+          setSoundEnabled(false)
+          setSoundNotice(
+            'Audio is not supported by this browser.',
+          )
+          return
+        }
+
+        if (
+          context.state ===
+          'suspended'
+        ) {
+          try {
+            await context.resume()
+          } catch {
+            setSoundEnabled(false)
+            setSoundNotice(
+              'Touch Enable Sound again.',
+            )
+            return
+          }
+        }
+
+        incomingEvents
+          .slice(0, 6)
+          .forEach(
+            (event, index) => {
+              playActionSound(
+                context,
+                event.action,
+                index * 0.8,
+              )
+            },
+          )
+      },
+      [soundEnabled],
+    )
 
   const fetchEvents = useCallback(
     async (
@@ -428,19 +655,26 @@ export default function TableActivityPage() {
           extractEvents(payload)
 
         if (hasLoadedRef.current) {
+          const incomingEvents =
+            nextEvents.filter(
+              (event) =>
+                !knownIdsRef.current.has(
+                  event.id,
+                ),
+            )
+
           const incomingIds =
-            nextEvents
-              .map((event) => event.id)
-              .filter(
-                (id) =>
-                  !knownIdsRef.current.has(
-                    id,
-                  ),
-              )
+            incomingEvents.map(
+              (event) => event.id,
+            )
 
           if (incomingIds.length > 0) {
             setNewEventIds(
               new Set(incomingIds),
+            )
+
+            void playIncomingEventSounds(
+              incomingEvents,
             )
 
             window.setTimeout(() => {
@@ -473,7 +707,7 @@ export default function TableActivityPage() {
         setIsRefreshing(false)
       }
     },
-    [],
+    [playIncomingEventSounds],
   )
 
   useEffect(() => {
@@ -622,6 +856,61 @@ export default function TableActivityPage() {
 
           return next
         },
+      )
+    }
+  }
+
+  async function toggleSound() {
+    if (soundEnabled) {
+      setSoundEnabled(false)
+      setSoundNotice(
+        'Sound is muted.',
+      )
+      return
+    }
+
+    let context =
+      audioContextRef.current
+
+    if (!context) {
+      context =
+        createAudioContext()
+
+      audioContextRef.current =
+        context
+    }
+
+    if (!context) {
+      setSoundNotice(
+        'Audio is not supported by this browser.',
+      )
+      return
+    }
+
+    try {
+      if (
+        context.state ===
+        'suspended'
+      ) {
+        await context.resume()
+      }
+
+      /*
+       * Confirmation chime.
+       */
+      playActionSound(
+        context,
+        'call',
+      )
+
+      setSoundEnabled(true)
+      setSoundNotice(
+        'Sound alerts are active.',
+      )
+    } catch {
+      setSoundEnabled(false)
+      setSoundNotice(
+        'The browser blocked sound. Touch Enable Sound again.',
       )
     }
   }
@@ -779,6 +1068,33 @@ export default function TableActivityPage() {
             <button
               type="button"
               onClick={() =>
+                void toggleSound()
+              }
+              className={`inline-flex h-14 items-center justify-center gap-3 rounded-2xl border px-5 text-sm font-black uppercase tracking-wider transition ${
+                soundEnabled
+                  ? 'border-emerald-300/40 bg-emerald-300 text-slate-950 shadow-lg shadow-emerald-500/25'
+                  : 'animate-pulse border-amber-300/40 bg-amber-300 text-slate-950 shadow-lg shadow-amber-500/25'
+              }`}
+              aria-label={
+                soundEnabled
+                  ? 'Mute alert sounds'
+                  : 'Enable alert sounds'
+              }
+            >
+              {soundEnabled ? (
+                <Volume2 className="h-6 w-6" />
+              ) : (
+                <VolumeX className="h-6 w-6" />
+              )}
+
+              {soundEnabled
+                ? 'Sound On'
+                : 'Enable Sound'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
                 void enterFullscreen()
               }
               className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/10 transition hover:bg-white/20"
@@ -807,6 +1123,27 @@ export default function TableActivityPage() {
           </div>
         </div>
       </header>
+
+      {!soundEnabled && (
+        <button
+          type="button"
+          onClick={() =>
+            void toggleSound()
+          }
+          className="mx-auto mt-5 flex w-[calc(100%-2.5rem)] max-w-[1800px] items-center justify-center gap-4 rounded-3xl border-2 border-amber-300/40 bg-amber-300 px-6 py-4 text-center text-lg font-black text-slate-950 shadow-xl shadow-amber-500/20 transition hover:scale-[1.005] lg:text-xl"
+        >
+          <VolumeX className="h-7 w-7 shrink-0" />
+
+          {soundNotice}
+        </button>
+      )}
+
+      {soundEnabled && (
+        <div className="mx-auto mt-4 flex w-[calc(100%-2.5rem)] max-w-[1800px] items-center justify-center gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-5 py-3 text-sm font-bold text-emerald-200">
+          <Volume2 className="h-5 w-5" />
+          {soundNotice}
+        </div>
+      )}
 
       {errorMessage && (
         <div className="mx-auto mt-5 flex max-w-[1800px] items-start gap-3 rounded-3xl border border-red-400/30 bg-red-500/15 px-5 py-4 text-red-100">
