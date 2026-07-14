@@ -1,0 +1,384 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import {
+  AlertTriangle,
+  Boxes,
+  ChevronRight,
+  ClipboardList,
+  Database,
+  FileBarChart,
+  LayoutDashboard,
+  LoaderCircle,
+  LogOut,
+  QrCode,
+  ScrollText,
+  Settings2,
+  ShoppingBag,
+  ShoppingCart,
+  Tags,
+  Truck,
+  UserCircle,
+  Users,
+  UtensilsCrossed,
+  WalletCards,
+  X,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+
+interface AdminSidebarProps {
+  isOpen: boolean
+  onClose: () => void
+  userName: string
+  userEmail: string
+  userRole: string
+  isLoggingOut: boolean
+  onLogout: () => Promise<void>
+}
+
+interface SidebarItem {
+  label: string
+  href: string
+  icon: LucideIcon
+}
+
+interface SidebarGroup {
+  title: string
+  items: SidebarItem[]
+}
+
+const sidebarGroups: SidebarGroup[] = [
+  {
+    title: 'Overview',
+    items: [
+      {
+        label: 'Dashboard',
+        href: '/dashboard',
+        icon: LayoutDashboard,
+      },
+    ],
+  },
+
+  {
+    title: 'Canteen Management',
+    items: [
+      {
+        label: 'Categories',
+        href: '/admin/categories',
+        icon: Tags,
+      },
+      {
+        label: 'Food Items',
+        href: '/admin/food-items',
+        icon: UtensilsCrossed,
+      },
+      {
+        label: 'Inventory',
+        href: '/admin/inventory',
+        icon: Boxes,
+      },
+      {
+        label: 'Stock Movements',
+        href: '/admin/stock-movements',
+        icon: ClipboardList,
+      },
+    ],
+  },
+
+  {
+    title: 'Procurement and Stock',
+    items: [
+      {
+        label: 'Suppliers',
+        href: '/admin/suppliers',
+        icon: Truck,
+      },
+      {
+        label: 'Low Stock Alerts',
+        href: '/admin/low-stock-alerts',
+        icon: AlertTriangle,
+      },
+      {
+        label: 'Purchase Requests',
+        href: '/admin/purchase-requests',
+        icon: ShoppingCart,
+      },
+    ],
+  },
+
+  {
+    title: 'Orders and Wallet',
+    items: [
+      {
+        label: 'Orders',
+        href: '/admin/orders',
+        icon: ShoppingBag,
+      },
+      {
+        label: 'Top-Up Requests',
+        href: '/admin/top-ups',
+        icon: WalletCards,
+      },
+      {
+        label: 'Wallet Transactions',
+        href: '/admin/wallet-transactions',
+        icon: WalletCards,
+      },
+      {
+        label: 'QR Scanner',
+        href: '/staff/scan',
+        icon: QrCode,
+      },
+    ],
+  },
+
+  {
+    title: 'Reports and Auditing',
+    items: [
+      {
+        label: 'Sales Reports',
+        href: '/admin/sales-reports',
+        icon: FileBarChart,
+      },
+      {
+        label: 'Inventory Reports',
+        href: '/admin/inventory-reports',
+        icon: Boxes,
+      },
+      {
+        label: 'Table Records',
+        href: '/admin/table-records',
+        icon: Database,
+      },
+      {
+        label: 'Activity Logs',
+        href: '/admin/activity-logs',
+        icon: ScrollText,
+      },
+    ],
+  },
+
+  {
+    title: 'System Administration',
+    items: [
+      {
+        label: 'Users',
+        href: '/admin/users',
+        icon: Users,
+      },
+      {
+        label: 'System Settings',
+        href: '/admin/system-settings',
+        icon: Settings2,
+      },
+      {
+        label: 'My Profile',
+        href: '/dashboard/profile',
+        icon: UserCircle,
+      },
+    ],
+  },
+]
+
+function routeIsActive(
+  pathname: string,
+  href: string,
+): boolean {
+  if (href === '/dashboard') {
+    return pathname === '/dashboard'
+  }
+
+  return (
+    pathname === href ||
+    pathname.startsWith(`${href}/`)
+  )
+}
+
+export default function AdminSidebar({
+  isOpen,
+  onClose,
+  userName,
+  userEmail,
+  userRole,
+  isLoggingOut,
+  onLogout,
+}: AdminSidebarProps) {
+  const pathname = usePathname()
+
+  const initial =
+    userName.trim().charAt(0).toUpperCase() ||
+    'A'
+
+  const formattedRole = String(
+    userRole || 'administrator',
+  )
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+
+  async function handleLogout() {
+    if (isLoggingOut) {
+      return
+    }
+
+    await onLogout()
+  }
+
+  return (
+    <>
+      {isOpen && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close sidebar overlay"
+          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm lg:hidden"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col border-r border-slate-200 bg-white transition-transform duration-300 lg:translate-x-0 ${
+          isOpen
+            ? 'translate-x-0'
+            : '-translate-x-full'
+        }`}
+      >
+        <div className="flex h-[76px] shrink-0 items-center justify-between border-b border-slate-200 px-5">
+          <Link
+            href="/dashboard"
+            onClick={onClose}
+            className="flex min-w-0 items-center gap-3"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/20">
+              <UtensilsCrossed className="h-6 w-6" />
+            </span>
+
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-extrabold tracking-wide text-slate-900">
+                SMART CANTEEN
+              </span>
+
+              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Management System
+              </span>
+            </span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close sidebar"
+            className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 lg:hidden"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <nav className="flex-1 space-y-6 overflow-y-auto px-4 py-5">
+          {sidebarGroups.map((group) => (
+            <section key={group.title}>
+              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                {group.title}
+              </p>
+
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const Icon = item.icon
+
+                  const active = routeIsActive(
+                    pathname,
+                    item.href,
+                  )
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onClose}
+                      aria-current={
+                        active
+                          ? 'page'
+                          : undefined
+                      }
+                      className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                        active
+                          ? 'bg-indigo-50 text-indigo-600'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                      }`}
+                    >
+                      <span
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition ${
+                          active
+                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                            : 'bg-slate-50 text-slate-400 group-hover:bg-white group-hover:text-indigo-600'
+                        }`}
+                      >
+                        <Icon className="h-[18px] w-[18px]" />
+                      </span>
+
+                      <span className="min-w-0 flex-1 truncate">
+                        {item.label}
+                      </span>
+
+                      {active && (
+                        <ChevronRight className="h-4 w-4 shrink-0" />
+                      )}
+                    </Link>
+                  )
+                })}
+              </div>
+            </section>
+          ))}
+        </nav>
+
+        <div className="shrink-0 border-t border-slate-200 p-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <Link
+              href="/dashboard/profile"
+              onClick={onClose}
+              className="flex items-center gap-3 rounded-xl p-1 transition hover:bg-white"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700">
+                {initial}
+              </span>
+
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold text-slate-900">
+                  {userName || 'Administrator'}
+                </span>
+
+                <span className="block truncate text-xs text-slate-500">
+                  {userEmail || 'No email available'}
+                </span>
+
+                <span className="block truncate text-[11px] capitalize text-indigo-600">
+                  {formattedRole}
+                </span>
+              </span>
+            </Link>
+
+            <button
+              type="button"
+              onClick={() =>
+                void handleLogout()
+              }
+              disabled={isLoggingOut}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoggingOut ? (
+                <>
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  Logging out...
+                </>
+              ) : (
+                <>
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
+  )
+}
