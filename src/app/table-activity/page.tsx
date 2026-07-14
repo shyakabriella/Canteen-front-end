@@ -2,21 +2,22 @@
 
 import {
   BellRing,
+  CheckCircle2,
   CircleAlert,
   Clock3,
   CreditCard,
-  LayoutDashboard,
   LoaderCircle,
+  Maximize,
   RefreshCw,
   ShoppingBag,
   UtensilsCrossed,
-  XCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 
@@ -26,7 +27,6 @@ type TableAction =
   | 'order'
   | 'call'
   | 'pay'
-  | 'cancel'
 
 interface EventTable {
   id: number | string
@@ -45,14 +45,6 @@ interface TableActionEvent {
   table: EventTable
 }
 
-interface ActionSummary {
-  all: number
-  order: number
-  call: number
-  pay: number
-  cancel: number
-}
-
 const API_BASE_URL = removeTrailingSlash(
   process.env.NEXT_PUBLIC_API_BASE_URL ??
     'https://www.canteen.asyncafrica.com/api',
@@ -62,58 +54,67 @@ const APP_NAME =
   process.env.NEXT_PUBLIC_APP_NAME ??
   'Smart Canteen'
 
+const REFRESH_INTERVAL_MS = 2000
+
 const actionConfig: Record<
   TableAction,
   {
     label: string
+    shortLabel: string
+    instruction: string
     icon: LucideIcon
     cardClass: string
     iconClass: string
-    badgeClass: string
+    glowClass: string
+    pulseClass: string
   }
 > = {
   call: {
-    label: 'Call Staff',
+    label: 'CALL STAFF',
+    shortLabel: 'Staff needed',
+    instruction:
+      'A customer is requesting waiter assistance.',
     icon: BellRing,
     cardClass:
-      'border-cyan-400/30 bg-cyan-400/10',
+      'border-cyan-300 bg-gradient-to-br from-cyan-300 via-cyan-400 to-blue-500 text-slate-950',
     iconClass:
-      'bg-cyan-400 text-slate-950',
-    badgeClass:
-      'border-cyan-300/30 bg-cyan-300/10 text-cyan-100',
+      'border-cyan-100/70 bg-white/85 text-cyan-700',
+    glowClass:
+      'shadow-[0_0_65px_rgba(34,211,238,0.42)]',
+    pulseClass:
+      'bg-cyan-200',
   },
 
   order: {
-    label: 'Order',
+    label: 'NEW ORDER',
+    shortLabel: 'Order requested',
+    instruction:
+      'A customer wants to place or continue an order.',
     icon: ShoppingBag,
     cardClass:
-      'border-lime-400/30 bg-lime-400/10',
+      'border-lime-300 bg-gradient-to-br from-lime-300 via-lime-400 to-emerald-500 text-slate-950',
     iconClass:
-      'bg-lime-400 text-slate-950',
-    badgeClass:
-      'border-lime-300/30 bg-lime-300/10 text-lime-100',
+      'border-lime-100/70 bg-white/85 text-lime-700',
+    glowClass:
+      'shadow-[0_0_65px_rgba(163,230,53,0.38)]',
+    pulseClass:
+      'bg-lime-200',
   },
 
   pay: {
-    label: 'Pay',
+    label: 'PAYMENT',
+    shortLabel: 'Payment requested',
+    instruction:
+      'A customer is ready to pay.',
     icon: CreditCard,
     cardClass:
-      'border-yellow-400/30 bg-yellow-400/10',
+      'border-yellow-200 bg-gradient-to-br from-yellow-200 via-yellow-400 to-orange-500 text-slate-950',
     iconClass:
-      'bg-yellow-400 text-slate-950',
-    badgeClass:
-      'border-yellow-300/30 bg-yellow-300/10 text-yellow-100',
-  },
-
-  cancel: {
-    label: 'Cancel',
-    icon: XCircle,
-    cardClass:
-      'border-rose-400/30 bg-rose-400/10',
-    iconClass:
-      'bg-rose-400 text-white',
-    badgeClass:
-      'border-rose-300/30 bg-rose-300/10 text-rose-100',
+      'border-yellow-100/80 bg-white/90 text-amber-700',
+    glowClass:
+      'shadow-[0_0_65px_rgba(250,204,21,0.4)]',
+    pulseClass:
+      'bg-yellow-100',
   },
 }
 
@@ -173,8 +174,7 @@ function normalizeAction(
   if (
     action === 'order' ||
     action === 'call' ||
-    action === 'pay' ||
-    action === 'cancel'
+    action === 'pay'
   ) {
     return action
   }
@@ -252,130 +252,58 @@ function normalizeEvent(
   }
 }
 
-function extractPayload(
+function extractEvents(
   payload: unknown,
-): {
-  events: TableActionEvent[]
-  summary: ActionSummary
-} {
+): TableActionEvent[] {
   const root = asRecord(payload)
   const data = asRecord(root.data)
 
-  const eventCandidates: unknown[] = [
+  const candidates: unknown[] = [
     data.events,
     root.events,
     data.data,
     root.data,
   ]
 
-  const collection = eventCandidates.find(
+  const collection = candidates.find(
     (candidate) =>
       Array.isArray(candidate),
   )
 
-  const summaryRecord = asRecord(
-    data.summary ??
-      root.summary,
-  )
-
-  const events = Array.isArray(collection)
-    ? collection.map(normalizeEvent)
-    : []
-
-  return {
-    events,
-
-    summary: {
-      all:
-        numberValue(
-          summaryRecord.all,
-          events.length,
-        ),
-
-      order:
-        numberValue(
-          summaryRecord.order,
-          events.filter(
-            (event) =>
-              event.action === 'order',
-          ).length,
-        ),
-
-      call:
-        numberValue(
-          summaryRecord.call,
-          events.filter(
-            (event) =>
-              event.action === 'call',
-          ).length,
-        ),
-
-      pay:
-        numberValue(
-          summaryRecord.pay,
-          events.filter(
-            (event) =>
-              event.action === 'pay',
-          ).length,
-        ),
-
-      cancel:
-        numberValue(
-          summaryRecord.cancel,
-          events.filter(
-            (event) =>
-              event.action === 'cancel',
-          ).length,
-        ),
-    },
+  if (!Array.isArray(collection)) {
+    return []
   }
+
+  return collection
+    .map(normalizeEvent)
+    .filter(
+      (event) =>
+        event.id > 0 &&
+        event.status.toLowerCase() ===
+          'pending',
+    )
 }
 
-function formatDateTime(
+function elapsedTime(
   value: string,
-): string {
-  if (!value) {
-    return 'Now'
-  }
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat(
-    'en',
-    {
-      dateStyle: 'medium',
-      timeStyle: 'medium',
-    },
-  ).format(date)
-}
-
-function timeAgo(
-  value: string,
+  now: Date,
 ): string {
   const date = new Date(value)
 
   if (Number.isNaN(date.getTime())) {
-    return 'Now'
+    return 'NOW'
   }
 
   const seconds = Math.max(
     0,
     Math.floor(
-      (Date.now() - date.getTime()) /
+      (now.getTime() - date.getTime()) /
         1000,
     ),
   )
 
-  if (seconds < 10) {
-    return 'Just now'
-  }
-
   if (seconds < 60) {
-    return `${seconds}s ago`
+    return `${seconds}s`
   }
 
   const minutes = Math.floor(
@@ -383,40 +311,45 @@ function timeAgo(
   )
 
   if (minutes < 60) {
-    return `${minutes}m ago`
+    return `${minutes}m ${seconds % 60}s`
   }
 
   const hours = Math.floor(
     minutes / 60,
   )
 
-  if (hours < 24) {
-    return `${hours}h ago`
+  return `${hours}h ${minutes % 60}m`
+}
+
+function urgencyClass(
+  occurredAt: string,
+  now: Date,
+): string {
+  const date = new Date(occurredAt)
+
+  if (Number.isNaN(date.getTime())) {
+    return ''
   }
 
-  const days = Math.floor(hours / 24)
+  const seconds =
+    (now.getTime() - date.getTime()) /
+    1000
 
-  return `${days}d ago`
+  if (seconds >= 300) {
+    return 'ring-8 ring-red-500 animate-[urgentPulse_1s_ease-in-out_infinite]'
+  }
+
+  if (seconds >= 120) {
+    return 'ring-4 ring-orange-300 animate-[warningPulse_1.4s_ease-in-out_infinite]'
+  }
+
+  return ''
 }
 
 export default function TableActivityPage() {
   const [events, setEvents] = useState<
     TableActionEvent[]
   >([])
-
-  const [summary, setSummary] =
-    useState<ActionSummary>({
-      all: 0,
-      order: 0,
-      call: 0,
-      pay: 0,
-      cancel: 0,
-    })
-
-  const [filter, setFilter] =
-    useState<'all' | TableAction>(
-      'all',
-    )
 
   const [isLoading, setIsLoading] =
     useState(true)
@@ -427,8 +360,28 @@ export default function TableActivityPage() {
   const [errorMessage, setErrorMessage] =
     useState('')
 
-  const [lastUpdated, setLastUpdated] =
-    useState<Date | null>(null)
+  const [now, setNow] =
+    useState(new Date())
+
+  const [
+    processingIds,
+    setProcessingIds,
+  ] = useState<Set<number>>(
+    new Set(),
+  )
+
+  const [
+    newEventIds,
+    setNewEventIds,
+  ] = useState<Set<number>>(
+    new Set(),
+  )
+
+  const knownIdsRef =
+    useRef<Set<number>>(new Set())
+
+  const hasLoadedRef =
+    useRef(false)
 
   const fetchEvents = useCallback(
     async (
@@ -442,11 +395,12 @@ export default function TableActivityPage() {
 
       try {
         const response = await fetch(
-          `${API_BASE_URL}/table-action-events/public?limit=100`,
+          `${API_BASE_URL}/table-action-events/public?status=pending&limit=200`,
           {
             method: 'GET',
             headers: {
-              Accept: 'application/json',
+              Accept:
+                'application/json',
             },
             credentials: 'omit',
             cache: 'no-store',
@@ -466,22 +420,53 @@ export default function TableActivityPage() {
               record.message,
               record.error,
             ) ||
-              `Unable to load table activity. Status ${response.status}.`,
+              `Unable to load requests. Status ${response.status}.`,
           )
         }
 
-        const result =
-          extractPayload(payload)
+        const nextEvents =
+          extractEvents(payload)
 
-        setEvents(result.events)
-        setSummary(result.summary)
-        setLastUpdated(new Date())
+        if (hasLoadedRef.current) {
+          const incomingIds =
+            nextEvents
+              .map((event) => event.id)
+              .filter(
+                (id) =>
+                  !knownIdsRef.current.has(
+                    id,
+                  ),
+              )
+
+          if (incomingIds.length > 0) {
+            setNewEventIds(
+              new Set(incomingIds),
+            )
+
+            window.setTimeout(() => {
+              setNewEventIds(
+                new Set(),
+              )
+            }, 5000)
+          }
+        }
+
+        knownIdsRef.current =
+          new Set(
+            nextEvents.map(
+              (event) => event.id,
+            ),
+          )
+
+        hasLoadedRef.current = true
+
+        setEvents(nextEvents)
         setErrorMessage('')
       } catch (error) {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : 'Unable to load table activity.',
+            : 'Unable to load table requests.',
         )
       } finally {
         setIsLoading(false)
@@ -494,38 +479,179 @@ export default function TableActivityPage() {
   useEffect(() => {
     void fetchEvents(true)
 
-    const interval =
+    const requestInterval =
       window.setInterval(() => {
         void fetchEvents(false)
-      }, 3000)
+      }, REFRESH_INTERVAL_MS)
+
+    const clockInterval =
+      window.setInterval(() => {
+        setNow(new Date())
+      }, 1000)
 
     return () => {
-      window.clearInterval(interval)
+      window.clearInterval(
+        requestInterval,
+      )
+
+      window.clearInterval(
+        clockInterval,
+      )
     }
   }, [fetchEvents])
 
-  const filteredEvents = useMemo(
+  const sortedEvents = useMemo(
     () =>
-      filter === 'all'
-        ? events
-        : events.filter(
-            (event) =>
-              event.action === filter,
-          ),
-    [events, filter],
+      [...events].sort(
+        (first, second) =>
+          new Date(
+            first.occurred_at,
+          ).getTime() -
+          new Date(
+            second.occurred_at,
+          ).getTime(),
+      ),
+    [events],
   )
 
-  const newestEvent =
-    filteredEvents[0] ?? null
+  const counts = useMemo(
+    () => ({
+      call:
+        events.filter(
+          (event) =>
+            event.action === 'call',
+        ).length,
+
+      order:
+        events.filter(
+          (event) =>
+            event.action === 'order',
+        ).length,
+
+      pay:
+        events.filter(
+          (event) =>
+            event.action === 'pay',
+        ).length,
+    }),
+    [events],
+  )
+
+  async function acknowledgeEvent(
+    event: TableActionEvent,
+  ) {
+    if (
+      processingIds.has(event.id)
+    ) {
+      return
+    }
+
+    setProcessingIds(
+      (current) => {
+        const next = new Set(current)
+        next.add(event.id)
+        return next
+      },
+    )
+
+    /*
+     * Remove immediately from the TV screen.
+     * When the API request fails, it is loaded
+     * again so the waiter does not lose it.
+     */
+    setEvents((current) =>
+      current.filter(
+        (item) =>
+          item.id !== event.id,
+      ),
+    )
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/table-action-events/public/${event.id}/acknowledge`,
+        {
+          method: 'POST',
+          headers: {
+            Accept:
+              'application/json',
+            'Content-Type':
+              'application/json',
+          },
+          credentials: 'omit',
+          cache: 'no-store',
+        },
+      )
+
+      const payload = await response
+        .json()
+        .catch(() => null)
+
+      if (!response.ok) {
+        const record =
+          asRecord(payload)
+
+        throw new Error(
+          stringValue(
+            record.message,
+            record.error,
+          ) ||
+            `Unable to receive request. Status ${response.status}.`,
+        )
+      }
+
+      knownIdsRef.current.delete(
+        event.id,
+      )
+
+      setErrorMessage('')
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to receive this request.',
+      )
+
+      await fetchEvents(false)
+    } finally {
+      setProcessingIds(
+        (current) => {
+          const next =
+            new Set(current)
+
+          next.delete(event.id)
+
+          return next
+        },
+      )
+    }
+  }
+
+  async function enterFullscreen() {
+    try {
+      if (
+        document.fullscreenElement
+      ) {
+        await document.exitFullscreen()
+        return
+      }
+
+      await document.documentElement
+        .requestFullscreen()
+    } catch {
+      setErrorMessage(
+        'Fullscreen mode could not be started by this browser.',
+      )
+    }
+  }
 
   if (isLoading) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-slate-950 text-white">
         <div className="text-center">
-          <LoaderCircle className="mx-auto h-12 w-12 animate-spin text-cyan-300" />
+          <LoaderCircle className="mx-auto h-16 w-16 animate-spin text-cyan-300" />
 
-          <p className="mt-4 text-sm font-semibold text-slate-300">
-            Loading live table activity...
+          <p className="mt-5 text-xl font-black">
+            Connecting to table requests...
           </p>
         </div>
       </main>
@@ -533,46 +659,133 @@ export default function TableActivityPage() {
   }
 
   return (
-    <main className="min-h-dvh bg-[radial-gradient(circle_at_top,#12345b_0%,#07111f_38%,#020617_100%)] px-4 py-6 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
-        <header className="flex flex-col gap-5 border-b border-white/10 pb-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/20">
-                <UtensilsCrossed className="h-7 w-7" />
-              </span>
+    <main className="min-h-dvh bg-[radial-gradient(circle_at_top,#183a63_0%,#07111f_38%,#020617_100%)] text-white">
+      <style jsx global>{`
+        @keyframes requestArrival {
+          0% {
+            opacity: 0;
+            transform: scale(0.7) translateY(50px);
+          }
 
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.26em] text-cyan-300">
-                  {APP_NAME}
-                </p>
+          55% {
+            opacity: 1;
+            transform: scale(1.06) translateY(-8px);
+          }
 
-                <h1 className="text-2xl font-black sm:text-3xl">
-                  Live Table Activity
-                </h1>
-              </div>
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+
+        @keyframes newRequestFlash {
+          0%,
+          100% {
+            box-shadow:
+              0 0 0 rgba(255,255,255,0),
+              0 0 60px rgba(255,255,255,0.22);
+          }
+
+          50% {
+            box-shadow:
+              0 0 0 12px rgba(255,255,255,0.18),
+              0 0 100px rgba(255,255,255,0.55);
+          }
+        }
+
+        @keyframes urgentPulse {
+          0%,
+          100% {
+            transform: scale(1);
+          }
+
+          50% {
+            transform: scale(1.025);
+          }
+        }
+
+        @keyframes warningPulse {
+          0%,
+          100% {
+            filter: brightness(1);
+          }
+
+          50% {
+            filter: brightness(1.16);
+          }
+        }
+      `}</style>
+
+      <header
+        className={`sticky top-0 z-30 border-b border-white/10 bg-slate-950/92 px-5 py-4 backdrop-blur-xl lg:px-8 ${
+          newEventIds.size > 0
+            ? 'shadow-[0_0_70px_rgba(34,211,238,0.35)]'
+            : ''
+        }`}
+      >
+        <div className="mx-auto flex max-w-[1900px] flex-wrap items-center justify-between gap-5">
+          <div className="flex items-center gap-4">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-500/30">
+              <UtensilsCrossed className="h-8 w-8" />
+            </span>
+
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-300">
+                {APP_NAME}
+              </p>
+
+              <h1 className="text-2xl font-black sm:text-3xl lg:text-4xl">
+                Waiter Request Screen
+              </h1>
             </div>
-
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-              This public screen shows every
-              Order, Call Staff, Pay, and Cancel
-              action received from canteen
-              tables.
-            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-200">
-              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400" />
-              Live
-            </span>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <RequestCounter
+              label="Call"
+              value={counts.call}
+              className="border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
+            />
 
-            <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
-              Updated:{' '}
-              {lastUpdated
-                ? lastUpdated.toLocaleTimeString()
-                : '-'}
-            </span>
+            <RequestCounter
+              label="Order"
+              value={counts.order}
+              className="border-lime-300/30 bg-lime-300/10 text-lime-100"
+            />
+
+            <RequestCounter
+              label="Pay"
+              value={counts.pay}
+              className="border-yellow-300/30 bg-yellow-300/10 text-yellow-100"
+            />
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-2 text-right">
+              <p className="text-2xl font-black tabular-nums">
+                {now.toLocaleTimeString(
+                  [],
+                  {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  },
+                )}
+              </p>
+
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Live
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                void enterFullscreen()
+              }
+              className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/10 transition hover:bg-white/20"
+              aria-label="Toggle fullscreen"
+            >
+              <Maximize className="h-6 w-6" />
+            </button>
 
             <button
               type="button"
@@ -580,245 +793,135 @@ export default function TableActivityPage() {
                 void fetchEvents(false)
               }
               disabled={isRefreshing}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 text-sm font-bold transition hover:bg-white/15 disabled:opacity-60"
+              className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/10 transition hover:bg-white/20 disabled:opacity-60"
+              aria-label="Refresh requests"
             >
               <RefreshCw
-                className={`h-4 w-4 ${
+                className={`h-6 w-6 ${
                   isRefreshing
                     ? 'animate-spin'
                     : ''
                 }`}
               />
-              Refresh
             </button>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {errorMessage && (
-          <div className="mt-6 flex items-start gap-3 rounded-3xl border border-red-400/20 bg-red-400/10 px-5 py-4 text-red-100">
-            <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+      {errorMessage && (
+        <div className="mx-auto mt-5 flex max-w-[1800px] items-start gap-3 rounded-3xl border border-red-400/30 bg-red-500/15 px-5 py-4 text-red-100">
+          <CircleAlert className="mt-0.5 h-6 w-6 shrink-0" />
 
-            <p className="text-sm leading-6">
-              {errorMessage}
-            </p>
-          </div>
-        )}
+          <p className="text-base font-bold">
+            {errorMessage}
+          </p>
+        </div>
+      )}
 
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <SummaryCard
-            label="All"
-            value={summary.all}
-            icon={LayoutDashboard}
-            active={filter === 'all'}
-            onClick={() => setFilter('all')}
-            className="border-white/10 bg-white/5"
-          />
-
-          <SummaryCard
-            label="Calls"
-            value={summary.call}
-            icon={BellRing}
-            active={filter === 'call'}
-            onClick={() => setFilter('call')}
-            className="border-cyan-400/20 bg-cyan-400/10"
-          />
-
-          <SummaryCard
-            label="Orders"
-            value={summary.order}
-            icon={ShoppingBag}
-            active={filter === 'order'}
-            onClick={() =>
-              setFilter('order')
-            }
-            className="border-lime-400/20 bg-lime-400/10"
-          />
-
-          <SummaryCard
-            label="Payments"
-            value={summary.pay}
-            icon={CreditCard}
-            active={filter === 'pay'}
-            onClick={() => setFilter('pay')}
-            className="border-yellow-400/20 bg-yellow-400/10"
-          />
-
-          <SummaryCard
-            label="Cancelled"
-            value={summary.cancel}
-            icon={XCircle}
-            active={filter === 'cancel'}
-            onClick={() =>
-              setFilter('cancel')
-            }
-            className="border-rose-400/20 bg-rose-400/10"
-          />
-        </section>
-
-        {newestEvent && (
-          <section className="mt-6 rounded-[32px] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur sm:p-7">
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-400">
-              Latest activity
+      <section className="mx-auto max-w-[1900px] px-5 py-6 lg:px-8 lg:py-8">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.24em] text-slate-400">
+              Active requests
             </p>
 
-            <LatestEvent event={newestEvent} />
-          </section>
-        )}
-
-        <section className="mt-6">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-black">
-                Activity Feed
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-400">
-                Showing{' '}
-                {filteredEvents.length}{' '}
-                event
-                {filteredEvents.length === 1
-                  ? ''
-                  : 's'}
-              </p>
-            </div>
+            <p className="mt-1 text-5xl font-black tabular-nums sm:text-6xl">
+              {sortedEvents.length}
+            </p>
           </div>
 
-          {filteredEvents.length === 0 ? (
-            <div className="flex min-h-72 flex-col items-center justify-center rounded-[32px] border border-dashed border-white/15 bg-white/5 p-8 text-center">
-              <Clock3 className="h-14 w-14 text-slate-500" />
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-lg font-bold text-slate-200">
+            <CheckCircle2 className="h-6 w-6 text-emerald-300" />
+            Touch a request when received
+          </div>
+        </div>
 
-              <h3 className="mt-4 text-xl font-black">
-                No table activity yet
-              </h3>
+        {sortedEvents.length === 0 ? (
+          <div className="flex min-h-[62vh] flex-col items-center justify-center rounded-[42px] border border-white/10 bg-white/[0.04] px-8 text-center shadow-2xl">
+            <span className="flex h-28 w-28 items-center justify-center rounded-full border border-emerald-300/25 bg-emerald-300/10">
+              <CheckCircle2 className="h-16 w-16 text-emerald-300" />
+            </span>
 
-              <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">
-                When a table selects Call,
-                Order, Pay, or Cancel, the event
-                will appear here automatically.
-              </p>
+            <h2 className="mt-7 text-4xl font-black sm:text-6xl">
+              All tables are served
+            </h2>
+
+            <p className="mt-4 text-xl font-semibold text-slate-400 sm:text-2xl">
+              New requests will appear here automatically.
+            </p>
+
+            <div className="mt-8 flex items-center gap-3 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-6 py-3 text-lg font-black text-emerald-200">
+              <span className="h-3 w-3 animate-pulse rounded-full bg-emerald-300" />
+              Listening for requests
             </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filteredEvents.map(
-                (event) => (
-                  <EventCard
-                    key={event.id}
-                    event={event}
-                  />
-                ),
-              )}
-            </div>
-          )}
-        </section>
-      </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,390px),1fr))] gap-6">
+            {sortedEvents.map(
+              (event) => (
+                <RequestCard
+                  key={event.id}
+                  event={event}
+                  now={now}
+                  isNew={newEventIds.has(
+                    event.id,
+                  )}
+                  isProcessing={
+                    processingIds.has(
+                      event.id,
+                    )
+                  }
+                  onReceive={() =>
+                    void acknowledgeEvent(
+                      event,
+                    )
+                  }
+                />
+              ),
+            )}
+          </div>
+        )}
+      </section>
     </main>
   )
 }
 
-function SummaryCard({
+function RequestCounter({
   label,
   value,
-  icon: Icon,
-  active,
-  onClick,
   className,
 }: {
   label: string
   value: number
-  icon: LucideIcon
-  active: boolean
-  onClick: () => void
   className: string
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-3xl border p-5 text-left transition hover:-translate-y-0.5 ${
-        active
-          ? 'ring-2 ring-white/40'
-          : ''
-      } ${className}`}
+    <div
+      className={`rounded-2xl border px-4 py-2 text-center ${className}`}
     >
-      <div className="flex items-center justify-between">
-        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10">
-          <Icon className="h-6 w-6" />
-        </span>
+      <p className="text-2xl font-black tabular-nums">
+        {value}
+      </p>
 
-        <span className="text-3xl font-black">
-          {value}
-        </span>
-      </div>
-
-      <p className="mt-4 text-sm font-bold text-slate-200">
+      <p className="text-[11px] font-black uppercase tracking-wider">
         {label}
       </p>
-    </button>
-  )
-}
-
-function LatestEvent({
-  event,
-}: {
-  event: TableActionEvent
-}) {
-  const config =
-    actionConfig[event.action]
-
-  const Icon = config.icon
-
-  return (
-    <div className="mt-4 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex items-center gap-4">
-        <span
-          className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl ${config.iconClass}`}
-        >
-          <Icon className="h-8 w-8" />
-        </span>
-
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-3xl font-black sm:text-4xl">
-              Table{' '}
-              {event.table.table_number}
-            </h2>
-
-            <span
-              className={`rounded-full border px-3 py-1 text-sm font-black ${config.badgeClass}`}
-            >
-              {config.label}
-            </span>
-          </div>
-
-          <p className="mt-2 text-sm text-slate-300">
-            {event.table.name}
-            {' · '}
-            {event.table.location}
-          </p>
-        </div>
-      </div>
-
-      <div className="lg:text-right">
-        <p className="text-lg font-black">
-          {timeAgo(
-            event.occurred_at,
-          )}
-        </p>
-
-        <p className="mt-1 text-sm text-slate-400">
-          {formatDateTime(
-            event.occurred_at,
-          )}
-        </p>
-      </div>
     </div>
   )
 }
 
-function EventCard({
+function RequestCard({
   event,
+  now,
+  isNew,
+  isProcessing,
+  onReceive,
 }: {
   event: TableActionEvent
+  now: Date
+  isNew: boolean
+  isProcessing: boolean
+  onReceive: () => void
 }) {
   const config =
     actionConfig[event.action]
@@ -826,48 +929,87 @@ function EventCard({
   const Icon = config.icon
 
   return (
-    <article
-      className={`rounded-[28px] border p-5 transition hover:-translate-y-0.5 ${config.cardClass}`}
+    <button
+      type="button"
+      onClick={onReceive}
+      disabled={isProcessing}
+      className={`group relative min-h-[410px] overflow-hidden rounded-[38px] border-[5px] p-7 text-left transition duration-200 hover:-translate-y-1 hover:scale-[1.01] active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 ${config.cardClass} ${config.glowClass} ${urgencyClass(
+        event.occurred_at,
+        now,
+      )} ${
+        isNew
+          ? 'animate-[requestArrival_.65s_cubic-bezier(.2,.8,.2,1),newRequestFlash_1.2s_ease-in-out_4]'
+          : ''
+      }`}
     >
-      <div className="flex items-start justify-between gap-4">
-        <span
-          className={`flex h-12 w-12 items-center justify-center rounded-2xl ${config.iconClass}`}
-        >
-          <Icon className="h-6 w-6" />
-        </span>
+      <span
+        className={`absolute right-5 top-5 h-5 w-5 animate-ping rounded-full ${config.pulseClass}`}
+      />
 
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-          {timeAgo(
-            event.occurred_at,
-          )}
-        </span>
+      <span
+        className={`absolute right-5 top-5 h-5 w-5 rounded-full ${config.pulseClass}`}
+      />
+
+      <div className="relative z-10 flex h-full flex-col">
+        <div className="flex items-start justify-between gap-5">
+          <span
+            className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-[26px] border-2 shadow-xl ${config.iconClass}`}
+          >
+            <Icon className="h-11 w-11" />
+          </span>
+
+          <div className="text-right">
+            <p className="text-sm font-black uppercase tracking-[0.2em] opacity-70">
+              Waiting
+            </p>
+
+            <p className="mt-1 text-3xl font-black tabular-nums">
+              {elapsedTime(
+                event.occurred_at,
+                now,
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <p className="text-lg font-black uppercase tracking-[0.16em] opacity-70">
+            Table
+          </p>
+
+          <p className="mt-1 text-[clamp(5rem,9vw,8.5rem)] font-black leading-[0.86] tracking-[-0.06em]">
+            {event.table.table_number}
+          </p>
+        </div>
+
+        <div className="mt-7">
+          <p className="text-3xl font-black sm:text-4xl">
+            {config.label}
+          </p>
+
+          <p className="mt-2 text-lg font-bold opacity-80">
+            {config.instruction}
+          </p>
+        </div>
+
+        <div className="mt-auto flex items-end justify-between gap-4 border-t-2 border-slate-950/15 pt-5">
+          <div>
+            <p className="text-xl font-black">
+              {event.table.name}
+            </p>
+
+            <p className="mt-1 text-base font-bold opacity-70">
+              {event.table.location}
+            </p>
+          </div>
+
+          <span className="rounded-2xl bg-slate-950 px-5 py-3 text-center text-sm font-black uppercase tracking-wider text-white shadow-xl transition group-hover:scale-105">
+            {isProcessing
+              ? 'Receiving...'
+              : 'Touch to receive'}
+          </span>
+        </div>
       </div>
-
-      <div className="mt-5">
-        <p className="text-sm font-bold text-slate-400">
-          Table
-        </p>
-
-        <h3 className="mt-1 text-3xl font-black">
-          {event.table.table_number}
-        </h3>
-
-        <p className="mt-1 text-sm text-slate-300">
-          {event.table.name}
-        </p>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
-        <span
-          className={`rounded-full border px-3 py-1 text-xs font-black ${config.badgeClass}`}
-        >
-          {config.label}
-        </span>
-
-        <span className="truncate text-xs text-slate-400">
-          {event.table.location}
-        </span>
-      </div>
-    </article>
+    </button>
   )
 }
