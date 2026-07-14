@@ -443,7 +443,7 @@ export default function PublicTablePage() {
             <div className="relative h-full w-full overflow-hidden rounded-full border border-white/20 bg-[radial-gradient(circle_at_50%_45%,#1f2937_0%,#0f172a_42%,#020617_82%)] shadow-[inset_0_0_70px_rgba(0,0,0,0.75)]">
               <div className="pointer-events-none absolute left-[17%] top-[17%] h-[12%] w-[42%] rotate-[-25deg] rounded-full bg-white/10 blur-xl" />
 
-              <div className="absolute left-1/2 top-[4.5%] -translate-x-1/2">
+              <div className="absolute left-[4.5%] top-1/2 -translate-y-1/2">
                 <DeviceButton
                   label="Pay"
                   icon={CreditCard}
@@ -503,7 +503,7 @@ export default function PublicTablePage() {
                 </span>
               </button>
 
-              <div className="pointer-events-none absolute left-[8%] top-1/2 -translate-y-1/2 -rotate-90 text-center">
+              <div className="pointer-events-none absolute left-1/2 top-[7%] -translate-x-1/2 text-center">
                 <p className="text-[10px] font-black uppercase tracking-[0.34em] text-white/35 sm:text-xs">
                   Table {table.table_number}
                 </p>
