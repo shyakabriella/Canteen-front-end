@@ -16,7 +16,11 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from 'react'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -52,11 +56,15 @@ const APP_NAME =
   process.env.NEXT_PUBLIC_APP_NAME ??
   'Smart Canteen'
 
-function removeTrailingSlash(value: string): string {
+function removeTrailingSlash(
+  value: string,
+): string {
   return value.replace(/\/+$/, '')
 }
 
-function asRecord(value: unknown): UnknownRecord {
+function asRecord(
+  value: unknown,
+): UnknownRecord {
   if (
     typeof value === 'object' &&
     value !== null &&
@@ -68,7 +76,9 @@ function asRecord(value: unknown): UnknownRecord {
   return {}
 }
 
-function stringValue(...values: unknown[]): string {
+function stringValue(
+  ...values: unknown[]
+): string {
   const found = values.find(
     (value) =>
       value !== undefined &&
@@ -76,7 +86,9 @@ function stringValue(...values: unknown[]): string {
       String(value).trim() !== '',
   )
 
-  return found === undefined ? '' : String(found)
+  return found === undefined
+    ? ''
+    : String(found)
 }
 
 function numberValue(
@@ -90,7 +102,9 @@ function numberValue(
     : fallback
 }
 
-function normalizeStatus(value: unknown): TableStatus {
+function normalizeStatus(
+  value: unknown,
+): TableStatus {
   const status = String(value ?? '')
     .trim()
     .toLowerCase()
@@ -195,7 +209,9 @@ function extractTable(
   )
 }
 
-function formatStatus(status: string): string {
+function formatStatus(
+  status: string,
+): string {
   return status
     .replaceAll('_', ' ')
     .replaceAll('-', ' ')
@@ -223,13 +239,20 @@ function getStatusClass(
 }
 
 export default function PublicTablePage() {
-  const params = useParams<{ token: string }>()
+  const params = useParams<{
+    token: string
+  }>()
+
   const router = useRouter()
 
-  const token = String(params?.token ?? '')
+  const token = String(
+    params?.token ?? '',
+  )
 
   const [table, setTable] =
-    useState<PublicCanteenTable | null>(null)
+    useState<PublicCanteenTable | null>(
+      null,
+    )
 
   const [isLoading, setIsLoading] =
     useState(true)
@@ -240,7 +263,14 @@ export default function PublicTablePage() {
   const [
     selectedAction,
     setSelectedAction,
-  ] = useState<DeviceAction | null>(null)
+  ] = useState<DeviceAction | null>(
+    null,
+  )
+
+  const [
+    isSendingAction,
+    setIsSendingAction,
+  ] = useState(false)
 
   const fetchTable = useCallback(
     async () => {
@@ -263,7 +293,8 @@ export default function PublicTablePage() {
           {
             method: 'GET',
             headers: {
-              Accept: 'application/json',
+              Accept:
+                'application/json',
             },
             credentials: 'omit',
             cache: 'no-store',
@@ -275,7 +306,8 @@ export default function PublicTablePage() {
           .catch(() => null)
 
         if (!response.ok) {
-          const record = asRecord(payload)
+          const record =
+            asRecord(payload)
 
           throw new Error(
             stringValue(
@@ -326,34 +358,109 @@ export default function PublicTablePage() {
     )
   }
 
-  function handleOrder() {
+  async function sendAction(
+    action: DeviceAction,
+  ): Promise<boolean> {
+    if (!table || isSendingAction) {
+      return false
+    }
+
+    setIsSendingAction(true)
+    setErrorMessage('')
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/canteen-tables/public/${encodeURIComponent(
+          token,
+        )}/actions`,
+        {
+          method: 'POST',
+          headers: {
+            Accept:
+              'application/json',
+            'Content-Type':
+              'application/json',
+          },
+          body: JSON.stringify({
+            action,
+          }),
+          credentials: 'omit',
+          cache: 'no-store',
+        },
+      )
+
+      const payload = await response
+        .json()
+        .catch(() => null)
+
+      if (!response.ok) {
+        const record =
+          asRecord(payload)
+
+        throw new Error(
+          stringValue(
+            record.message,
+            record.error,
+          ) ||
+            `Unable to send action. Status ${response.status}.`,
+        )
+      }
+
+      setSelectedAction(action)
+
+      return true
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to send this action.',
+      )
+
+      return false
+    } finally {
+      setIsSendingAction(false)
+    }
+  }
+
+  async function handleOrder() {
     rememberTable()
-    setSelectedAction('order')
 
-    window.setTimeout(() => {
-      router.push('/login')
-    }, 450)
+    const sent =
+      await sendAction('order')
+
+    if (sent) {
+      window.setTimeout(() => {
+        router.push('/login')
+      }, 700)
+    }
   }
 
-  function handlePay() {
+  async function handlePay() {
     rememberTable()
-    setSelectedAction('pay')
 
-    window.setTimeout(() => {
-      router.push('/login')
-    }, 450)
+    const sent =
+      await sendAction('pay')
+
+    if (sent) {
+      window.setTimeout(() => {
+        router.push('/login')
+      }, 700)
+    }
   }
 
-  function handleCall() {
-    setSelectedAction('call')
+  async function handleCall() {
+    await sendAction('call')
   }
 
-  function handleCancel() {
-    setSelectedAction('cancel')
+  async function handleCancel() {
+    const sent =
+      await sendAction('cancel')
 
-    window.setTimeout(() => {
-      setSelectedAction(null)
-    }, 900)
+    if (sent) {
+      window.setTimeout(() => {
+        setSelectedAction(null)
+      }, 1400)
+    }
   }
 
   if (isLoading) {
@@ -371,7 +478,7 @@ export default function PublicTablePage() {
   }
 
   if (
-    errorMessage ||
+    errorMessage &&
     !table
   ) {
     return (
@@ -390,7 +497,9 @@ export default function PublicTablePage() {
 
           <button
             type="button"
-            onClick={() => void fetchTable()}
+            onClick={() =>
+              void fetchTable()
+            }
             className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-sm font-bold text-white transition hover:bg-blue-700"
           >
             <RefreshCw className="h-5 w-5" />
@@ -399,6 +508,10 @@ export default function PublicTablePage() {
         </div>
       </main>
     )
+  }
+
+  if (!table) {
+    return null
   }
 
   return (
@@ -423,7 +536,9 @@ export default function PublicTablePage() {
                 table.status,
               )}`}
             >
-              {formatStatus(table.status)}
+              {formatStatus(
+                table.status,
+              )}
             </span>
 
             <span className="flex items-center gap-2 text-slate-200">
@@ -438,6 +553,12 @@ export default function PublicTablePage() {
           </div>
         </header>
 
+        {errorMessage && (
+          <div className="mx-auto mb-5 max-w-2xl rounded-3xl border border-red-400/20 bg-red-400/10 px-5 py-4 text-center text-sm font-semibold text-red-100">
+            {errorMessage}
+          </div>
+        )}
+
         <section className="relative mx-auto aspect-square w-full max-w-[650px] rounded-full bg-[radial-gradient(circle_at_48%_28%,#475569_0%,#111827_36%,#020617_72%)] p-[14px] shadow-[0_45px_110px_rgba(0,0,0,0.72),inset_0_4px_12px_rgba(255,255,255,0.16)] sm:p-[20px]">
           <div className="h-full w-full rounded-full border-[8px] border-slate-300/70 bg-gradient-to-br from-slate-200 via-slate-500 to-slate-900 p-[5px] shadow-[inset_0_0_0_3px_rgba(255,255,255,0.3)] sm:border-[11px]">
             <div className="relative h-full w-full overflow-hidden rounded-full border border-white/20 bg-[radial-gradient(circle_at_50%_45%,#1f2937_0%,#0f172a_42%,#020617_82%)] shadow-[inset_0_0_70px_rgba(0,0,0,0.75)]">
@@ -448,11 +569,14 @@ export default function PublicTablePage() {
                   label="Pay"
                   icon={CreditCard}
                   className="border-yellow-200 bg-yellow-400 text-slate-950 shadow-[0_12px_30px_rgba(250,204,21,0.35)] hover:bg-yellow-300"
-                  onClick={handlePay}
+                  onClick={() =>
+                    void handlePay()
+                  }
                   active={
                     selectedAction ===
                     'pay'
                   }
+                  disabled={isSendingAction}
                 />
               </div>
 
@@ -461,11 +585,14 @@ export default function PublicTablePage() {
                   label="Cancel"
                   icon={XCircle}
                   className="border-rose-200 bg-amber-300 text-slate-950 shadow-[0_12px_30px_rgba(251,191,36,0.3)] hover:bg-amber-200"
-                  onClick={handleCancel}
+                  onClick={() =>
+                    void handleCancel()
+                  }
                   active={
                     selectedAction ===
                     'cancel'
                   }
+                  disabled={isSendingAction}
                 />
               </div>
 
@@ -474,25 +601,35 @@ export default function PublicTablePage() {
                   label="Order"
                   icon={ShoppingBag}
                   className="border-lime-200 bg-lime-500 text-slate-950 shadow-[0_12px_30px_rgba(132,204,22,0.35)] hover:bg-lime-400"
-                  onClick={handleOrder}
+                  onClick={() =>
+                    void handleOrder()
+                  }
                   active={
                     selectedAction ===
                     'order'
                   }
+                  disabled={isSendingAction}
                 />
               </div>
 
               <button
                 type="button"
-                onClick={handleCall}
-                className={`absolute left-1/2 top-1/2 flex h-28 w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border-[5px] border-slate-300 bg-white text-slate-950 shadow-[0_18px_45px_rgba(0,0,0,0.55),inset_0_0_0_3px_rgba(15,23,42,0.08)] transition duration-200 hover:scale-105 active:scale-95 sm:h-36 sm:w-36 ${
+                onClick={() =>
+                  void handleCall()
+                }
+                disabled={isSendingAction}
+                className={`absolute left-1/2 top-1/2 flex h-28 w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border-[5px] border-slate-300 bg-white text-slate-950 shadow-[0_18px_45px_rgba(0,0,0,0.55),inset_0_0_0_3px_rgba(15,23,42,0.08)] transition duration-200 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 sm:h-36 sm:w-36 ${
                   selectedAction ===
                   'call'
                     ? 'scale-105 ring-8 ring-cyan-400/35'
                     : ''
                 }`}
               >
-                <BellRing className="h-7 w-7 text-blue-700 sm:h-9 sm:w-9" />
+                {isSendingAction ? (
+                  <LoaderCircle className="h-8 w-8 animate-spin text-blue-700" />
+                ) : (
+                  <BellRing className="h-7 w-7 text-blue-700 sm:h-9 sm:w-9" />
+                )}
 
                 <span className="mt-1 text-xl font-black sm:text-2xl">
                   Call
@@ -523,19 +660,9 @@ export default function PublicTablePage() {
           ) : (
             <div className="rounded-3xl border border-white/10 bg-white/10 px-5 py-4 text-center text-sm leading-6 text-slate-200 backdrop-blur">
               Select an action on the table
-              device. Use{' '}
-              <strong className="text-white">
-                Order
-              </strong>{' '}
-              to start ordering,{' '}
-              <strong className="text-white">
-                Pay
-              </strong>{' '}
-              to continue to payment, or{' '}
-              <strong className="text-white">
-                Call
-              </strong>{' '}
-              for staff assistance.
+              device. Every action will appear
+              on the public live activity
+              screen.
             </div>
           )}
 
@@ -556,18 +683,21 @@ function DeviceButton({
   className,
   onClick,
   active,
+  disabled,
 }: {
   label: string
   icon: LucideIcon
   className: string
   onClick: () => void
   active: boolean
+  disabled: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-20 w-20 flex-col items-center justify-center rounded-full border-[4px] font-black transition duration-200 hover:scale-105 active:scale-95 sm:h-24 sm:w-24 md:h-28 md:w-28 ${
+      disabled={disabled}
+      className={`flex h-20 w-20 flex-col items-center justify-center rounded-full border-[4px] font-black transition duration-200 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 sm:h-24 sm:w-24 md:h-28 md:w-28 ${
         active
           ? 'scale-105 ring-8 ring-white/20'
           : ''
@@ -599,39 +729,39 @@ function ActionMessage({
     }
   > = {
     order: {
-      title: 'Opening food ordering',
+      title: 'Order request received',
       message:
-        `Table ${tableNumber} has been selected. Redirecting to sign in.`,
+        `Table ${tableNumber} selected Order. This action is now visible on the live public screen.`,
       icon: ShoppingBag,
       className:
         'border-lime-400/30 bg-lime-400/10 text-lime-100',
     },
 
     pay: {
-      title: 'Opening payment',
+      title: 'Payment request received',
       message:
-        `Table ${tableNumber} has been selected. Redirecting to sign in.`,
+        `Table ${tableNumber} selected Pay. This action is now visible on the live public screen.`,
       icon: CreditCard,
       className:
         'border-yellow-400/30 bg-yellow-400/10 text-yellow-100',
     },
 
     call: {
-      title: 'Call Staff selected',
+      title: 'Staff call received',
       message:
-        `Staff assistance was selected for Table ${tableNumber}. Connect this action to your staff-call API when the endpoint is ready.`,
+        `Table ${tableNumber} requested staff assistance. This action is now visible on the live public screen.`,
       icon: BellRing,
       className:
         'border-cyan-400/30 bg-cyan-400/10 text-cyan-100',
     },
 
     cancel: {
-      title: 'Action cancelled',
+      title: 'Cancellation received',
       message:
-        'No order or payment action was started.',
+        `Table ${tableNumber} selected Cancel. This action is now visible on the live public screen.`,
       icon: CheckCircle2,
       className:
-        'border-slate-300/20 bg-white/10 text-slate-100',
+        'border-rose-300/30 bg-rose-300/10 text-rose-100',
     },
   }
 
