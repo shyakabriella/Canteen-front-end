@@ -1692,21 +1692,260 @@ function asRecord(value: unknown): JsonRecord | null {
   return null
 }
 
+function cleanStoredToken(
+  value: string,
+): string {
+  const cleaned = value
+    .trim()
+    .replace(/^"|"$/g, '')
+    .replace(/^Bearer\s+/i, '')
+    .trim()
+
+  if (
+    !cleaned ||
+    cleaned === 'null' ||
+    cleaned === 'undefined'
+  ) {
+    return ''
+  }
+
+  return cleaned
+}
+
+function extractStoredToken(
+  value: unknown,
+  allowPlainString = false,
+  depth = 0,
+): string {
+  if (
+    value === undefined ||
+    value === null ||
+    depth > 6
+  ) {
+    return ''
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+
+    if (!trimmed) {
+      return ''
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed)
+
+      const parsedToken = extractStoredToken(
+        parsed,
+        allowPlainString,
+        depth + 1,
+      )
+
+      if (parsedToken) {
+        return parsedToken
+      }
+    } catch {
+      // The stored value is a plain string rather than JSON.
+    }
+
+    return allowPlainString
+      ? cleanStoredToken(trimmed)
+      : ''
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const token = extractStoredToken(
+        item,
+        false,
+        depth + 1,
+      )
+
+      if (token) {
+        return token
+      }
+    }
+
+    return ''
+  }
+
+  const record = asRecord(value)
+
+  if (!record) {
+    return ''
+  }
+
+  const directTokenFields = [
+    'access_token',
+    'accessToken',
+    'auth_token',
+    'authToken',
+    'token',
+    'api_token',
+    'apiToken',
+    'plainTextToken',
+    'plain_text_token',
+    'bearer_token',
+    'bearerToken',
+    'sanctum_token',
+    'sanctumToken',
+  ]
+
+  for (const field of directTokenFields) {
+    if (record[field] === undefined) {
+      continue
+    }
+
+    const token = extractStoredToken(
+      record[field],
+      true,
+      depth + 1,
+    )
+
+    if (token) {
+      return token
+    }
+  }
+
+  const nestedFields = [
+    'data',
+    'auth',
+    'authData',
+    'auth_data',
+    'session',
+    'credentials',
+    'response',
+    'payload',
+    'user',
+  ]
+
+  for (const field of nestedFields) {
+    if (record[field] === undefined) {
+      continue
+    }
+
+    const token = extractStoredToken(
+      record[field],
+      false,
+      depth + 1,
+    )
+
+    if (token) {
+      return token
+    }
+  }
+
+  for (const [key, nestedValue] of Object.entries(
+    record,
+  )) {
+    if (
+      !/token|auth|session|credential|login/i.test(
+        key,
+      )
+    ) {
+      continue
+    }
+
+    const token = extractStoredToken(
+      nestedValue,
+      typeof nestedValue === 'string',
+      depth + 1,
+    )
+
+    if (token) {
+      return token
+    }
+  }
+
+  return ''
+}
+
 function getStoredToken(): string {
   if (typeof window === 'undefined') {
     return ''
   }
 
-  return (
-    window.localStorage.getItem('token') ||
-    window.localStorage.getItem('auth_token') ||
-    window.localStorage.getItem('authToken') ||
-    window.localStorage.getItem('access_token') ||
-    window.sessionStorage.getItem('token') ||
-    window.sessionStorage.getItem('auth_token') ||
-    ''
-  )
+  const preferredKeys = [
+    'auth_token',
+    'access_token',
+    'token',
+    'authToken',
+    'accessToken',
+    'api_token',
+    'sanctum_token',
+    'smart_canteen_token',
+    'smart-canteen-token',
+    'smart_canteen_auth',
+    'smart-canteen-auth',
+    'canteen_token',
+    'canteen-token',
+    'auth',
+    'auth_data',
+    'authData',
+    'user',
+    'session',
+  ]
+
+  const storages: Storage[] = [
+    window.localStorage,
+    window.sessionStorage,
+  ]
+
+  for (const storage of storages) {
+    for (const key of preferredKeys) {
+      const storedValue = storage.getItem(key)
+
+      if (!storedValue) {
+        continue
+      }
+
+      const token = extractStoredToken(
+        storedValue,
+        true,
+      )
+
+      if (token) {
+        return token
+      }
+    }
+  }
+
+  /*
+   * AuthContext may save one JSON object under a custom key.
+   * Inspect every local/session-storage entry and extract its token.
+   */
+  for (const storage of storages) {
+    for (
+      let index = 0;
+      index < storage.length;
+      index += 1
+    ) {
+      const key = storage.key(index)
+
+      if (!key) {
+        continue
+      }
+
+      const storedValue = storage.getItem(key)
+
+      if (!storedValue) {
+        continue
+      }
+
+      const token = extractStoredToken(
+        storedValue,
+        /token|auth|session|login|user/i.test(key),
+      )
+
+      if (token) {
+        return token
+      }
+    }
+  }
+
+  return ''
 }
+
 
 function firstErrorMessage(payload: unknown): string {
   const root = asRecord(payload)
@@ -1791,7 +2030,7 @@ async function guestOrderRequest(
 
   if (!token) {
     throw new Error(
-      'Login token not found. Please login again.',
+      'Your AuthContext login session was not found. Please log out and sign in again.',
     )
   }
 
