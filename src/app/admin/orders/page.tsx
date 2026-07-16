@@ -6,24 +6,34 @@ import {
   CheckCircle2,
   ChefHat,
   Clock3,
+  Eye,
   LoaderCircle,
   PackageCheck,
+  Pencil,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   ShoppingCart,
+  Trash2,
 } from 'lucide-react'
 import {
   useCallback,
   useEffect,
   useState,
+  type ReactNode,
 } from 'react'
 import OrderActionModal, {
   type OrderActionType,
 } from '@/components/admin/orders/OrderActionModal'
 import OrderDetailsModal from '@/components/admin/orders/OrderDetailsModal'
 import OrderFormModal from '@/components/admin/orders/OrderFormModal'
-import OrderTable from '@/components/admin/orders/OrderTable'
+import {
+  formatOrderAmount,
+  getOrderReference,
+  getOrderTotal,
+  getOrderUserName,
+} from '@/lib/order'
 import { getFoodItems } from '@/services/food-item.service'
 import {
   cancelOrder,
@@ -59,6 +69,122 @@ const emptySummary: OrderSummary = {
   total_sales: 0,
   completed_sales: 0,
   refunded_amount: 0,
+}
+
+
+function getCurrentOrderStatus(
+  order: Order,
+): string {
+  const record = order as Order & {
+    order_status?: unknown
+    status?: unknown
+  }
+
+  return String(
+    record.order_status ??
+      record.status ??
+      '',
+  )
+    .trim()
+    .toLowerCase()
+}
+
+function isOrderPlacedStatus(
+  status: string,
+): boolean {
+  return [
+    'pending',
+    'confirmed',
+    'placed',
+    'order_placed',
+  ].includes(status)
+}
+
+function canRunOrderAction(
+  order: Order,
+  type: OrderActionType,
+): {
+  allowed: boolean
+  message: string
+} {
+  const status = getCurrentOrderStatus(order)
+
+  if (type === 'preparing') {
+    if (isOrderPlacedStatus(status)) {
+      return {
+        allowed: true,
+        message: '',
+      }
+    }
+
+    return {
+      allowed: false,
+      message:
+        status === 'preparing'
+          ? 'This order is already preparing. Use Mark Ready next.'
+          : `This order cannot start preparation from status: ${
+              status || 'unknown'
+            }.`,
+    }
+  }
+
+  if (type === 'ready') {
+    if (status === 'preparing') {
+      return {
+        allowed: true,
+        message: '',
+      }
+    }
+
+    return {
+      allowed: false,
+      message:
+        status === 'ready'
+          ? 'This order is already ready for pickup. Use Complete Pickup next.'
+          : `Only preparing orders can be marked ready. Current status: ${
+              status || 'unknown'
+            }.`,
+    }
+  }
+
+  if (type === 'complete') {
+    if (status === 'ready') {
+      return {
+        allowed: true,
+        message: '',
+      }
+    }
+
+    return {
+      allowed: false,
+      message:
+        status === 'completed'
+          ? 'This order is already completed.'
+          : `Only ready orders can be completed. Current status: ${
+              status || 'unknown'
+            }.`,
+    }
+  }
+
+  if (
+    [
+      'completed',
+      'cancelled',
+      'canceled',
+    ].includes(status)
+  ) {
+    return {
+      allowed: false,
+      message: `This order cannot be cancelled because it is ${
+        status || 'unknown'
+      }.`,
+    }
+  }
+
+  return {
+    allowed: true,
+    message: '',
+  }
 }
 
 export default function OrdersPage() {
@@ -152,13 +278,20 @@ export default function OrdersPage() {
     }, [])
 
   const loadOrders = useCallback(
-    async (refresh = false) => {
-      setErrorMessage('')
+    async (
+      refresh = false,
+      silent = false,
+    ) => {
+      if (!silent) {
+        setErrorMessage('')
+      }
 
-      if (refresh) {
-        setIsRefreshing(true)
-      } else {
-        setIsLoading(true)
+      if (!silent) {
+        if (refresh) {
+          setIsRefreshing(true)
+        } else {
+          setIsLoading(true)
+        }
       }
 
       try {
@@ -179,17 +312,29 @@ export default function OrdersPage() {
             getOrderSummary(filters),
           ])
 
-        setOrders(listResult.orders)
-        setSummary(summaryResult)
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : 'Unable to load orders.',
+        setOrders(
+          Array.isArray(listResult.orders)
+            ? listResult.orders
+            : [],
         )
+
+        setSummary({
+          ...emptySummary,
+          ...(summaryResult ?? {}),
+        })
+      } catch (error) {
+        if (!silent) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Unable to load orders.',
+          )
+        }
       } finally {
-        setIsLoading(false)
-        setIsRefreshing(false)
+        if (!silent) {
+          setIsLoading(false)
+          setIsRefreshing(false)
+        }
       }
     },
     [
@@ -210,6 +355,30 @@ export default function OrdersPage() {
   useEffect(() => {
     void loadOrders()
   }, [loadOrders])
+
+  /*
+   * Keep this page synchronized with orders created from the mobile app
+   * and with status updates made by other staff devices.
+   */
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (
+        document.visibilityState === 'visible' &&
+        !isSubmitting &&
+        !actionOpen
+      ) {
+        void loadOrders(false, true)
+      }
+    }, 5000)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [
+    actionOpen,
+    isSubmitting,
+    loadOrders,
+  ])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -319,6 +488,17 @@ export default function OrdersPage() {
     order: Order,
     type: OrderActionType,
   ) {
+    const validation =
+      canRunOrderAction(order, type)
+
+    if (!validation.allowed) {
+      setMessage('')
+      setErrorMessage(validation.message)
+      return
+    }
+
+    setMessage('')
+    setErrorMessage('')
     setActionOrder(order)
     setActionType(type)
     setActionOpen(true)
@@ -336,24 +516,42 @@ export default function OrdersPage() {
     setErrorMessage('')
 
     try {
+      /*
+       * Fetch the latest order before changing it. This prevents a stale
+       * dashboard row from sending "preparing" again after another device
+       * already moved the order to the next status.
+       */
+      const latestOrder = await getOrder(
+        actionOrder.id,
+      )
+
+      const validation = canRunOrderAction(
+        latestOrder,
+        actionType,
+      )
+
+      if (!validation.allowed) {
+        throw new Error(validation.message)
+      }
+
       const result =
         actionType === 'preparing'
           ? await markOrderPreparing(
-              actionOrder.id,
+              latestOrder.id,
               payload,
             )
           : actionType === 'ready'
             ? await markOrderReady(
-                actionOrder.id,
+                latestOrder.id,
                 payload,
               )
             : actionType === 'complete'
               ? await completeOrder(
-                  actionOrder.id,
+                  latestOrder.id,
                   payload,
                 )
               : await cancelOrder(
-                  actionOrder.id,
+                  latestOrder.id,
                   payload,
                 )
 
@@ -371,6 +569,12 @@ export default function OrdersPage() {
           ? error.message
           : 'Unable to process the order.',
       )
+
+      /*
+       * Refresh the list after a rejected action because the order may
+       * already have been changed by another staff member.
+       */
+      await loadOrders(false, true)
 
       throw error
     } finally {
@@ -520,7 +724,7 @@ export default function OrdersPage() {
           />
 
           <SummaryCard
-            title="Pending"
+            title="Order Placed"
             value={summary.pending_orders}
             icon={Clock3}
             className="bg-blue-50 text-blue-600"
@@ -590,7 +794,7 @@ export default function OrdersPage() {
                 <option value="">
                   All statuses
                 </option>
-                <option value="pending">Pending</option>
+                <option value="pending">Order Placed</option>
                 <option value="preparing">
                   Preparing
                 </option>
@@ -833,5 +1037,539 @@ function SummaryCard({
         </span>
       </div>
     </article>
+  )
+}
+
+interface OrderTableProps {
+  orders: Order[]
+  processingId: number | string | null
+  onView: (order: Order) => void
+  onEdit: (order: Order) => void
+  onDelete: (order: Order) => void
+  onRestore: (order: Order) => void
+  onPreparing: (order: Order) => void
+  onReady: (order: Order) => void
+  onComplete: (order: Order) => void
+  onCancel: (order: Order) => void
+}
+
+type OrderRecord = Order & {
+  order_status?: unknown
+  status?: unknown
+  payment_status?: unknown
+  pickup_status?: unknown
+  ordered_at?: unknown
+  created_at?: unknown
+  deleted_at?: unknown
+  order_items?: unknown[]
+  orderItems?: unknown[]
+  user?: {
+    email?: unknown
+  } | null
+}
+
+function stringValue(
+  ...values: unknown[]
+): string {
+  for (const value of values) {
+    if (
+      value !== undefined &&
+      value !== null &&
+      String(value).trim()
+    ) {
+      return String(value).trim()
+    }
+  }
+
+  return ''
+}
+
+function getStatus(order: Order): string {
+  const record = order as OrderRecord
+
+  return stringValue(
+    record.order_status,
+    record.status,
+  ).toLowerCase()
+}
+
+function isOrderPlaced(status: string): boolean {
+  return [
+    'pending',
+    'confirmed',
+    'placed',
+    'order_placed',
+  ].includes(status)
+}
+
+function statusLabel(status: string): string {
+  if (isOrderPlaced(status)) {
+    return 'Order Placed'
+  }
+
+  if (status === 'preparing') {
+    return 'Preparing'
+  }
+
+  if (status === 'ready') {
+    return 'Ready for Pickup'
+  }
+
+  if (status === 'completed') {
+    return 'Completed'
+  }
+
+  if (
+    status === 'cancelled' ||
+    status === 'canceled'
+  ) {
+    return 'Cancelled'
+  }
+
+  return status
+    ? status
+        .replaceAll('_', ' ')
+        .replace(/\b\w/g, (letter) =>
+          letter.toUpperCase(),
+        )
+    : 'Unknown'
+}
+
+function statusClassName(
+  status: string,
+): string {
+  if (isOrderPlaced(status)) {
+    return 'border-blue-200 bg-blue-50 text-blue-700'
+  }
+
+  if (status === 'preparing') {
+    return 'border-violet-200 bg-violet-50 text-violet-700'
+  }
+
+  if (status === 'ready') {
+    return 'border-amber-200 bg-amber-50 text-amber-700'
+  }
+
+  if (status === 'completed') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  }
+
+  if (
+    status === 'cancelled' ||
+    status === 'canceled'
+  ) {
+    return 'border-red-200 bg-red-50 text-red-700'
+  }
+
+  return 'border-slate-200 bg-slate-50 text-slate-700'
+}
+
+function paymentClassName(
+  status: string,
+): string {
+  if (status === 'paid') {
+    return 'bg-emerald-50 text-emerald-700'
+  }
+
+  if (status === 'refunded') {
+    return 'bg-violet-50 text-violet-700'
+  }
+
+  if (status === 'failed') {
+    return 'bg-red-50 text-red-700'
+  }
+
+  return 'bg-amber-50 text-amber-700'
+}
+
+function itemCount(order: Order): number {
+  const record = order as OrderRecord
+
+  const items = Array.isArray(
+    record.order_items,
+  )
+    ? record.order_items
+    : Array.isArray(record.orderItems)
+      ? record.orderItems
+      : []
+
+  return items.length
+}
+
+function isDeleted(order: Order): boolean {
+  return Boolean(
+    (order as OrderRecord).deleted_at,
+  )
+}
+
+function canCancel(status: string): boolean {
+  return ![
+    'completed',
+    'cancelled',
+    'canceled',
+  ].includes(status)
+}
+
+function formatDate(value: unknown): string {
+  const raw = stringValue(value)
+
+  if (!raw) {
+    return 'Not available'
+  }
+
+  const date = new Date(raw)
+
+  if (Number.isNaN(date.getTime())) {
+    return raw
+  }
+
+  return new Intl.DateTimeFormat(
+    'en-US',
+    {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    },
+  ).format(date)
+}
+
+function OrderTable({
+  orders = [],
+  processingId,
+  onView,
+  onEdit,
+  onDelete,
+  onRestore,
+  onPreparing,
+  onReady,
+  onComplete,
+  onCancel,
+}: OrderTableProps) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1180px]">
+        <thead className="bg-slate-50">
+          <tr className="border-b border-slate-200">
+            <HeaderCell>Order</HeaderCell>
+            <HeaderCell>Customer</HeaderCell>
+            <HeaderCell>Amount</HeaderCell>
+            <HeaderCell>Payment</HeaderCell>
+            <HeaderCell>Current Status</HeaderCell>
+            <HeaderCell>Ordered At</HeaderCell>
+            <HeaderCell>Change Status</HeaderCell>
+            <HeaderCell>Manage</HeaderCell>
+          </tr>
+        </thead>
+
+        <tbody>
+          {orders.map((order) => {
+            const record =
+              order as OrderRecord
+
+            const status = getStatus(order)
+
+            const paymentStatus =
+              stringValue(
+                record.payment_status,
+              ).toLowerCase()
+
+            const deleted = isDeleted(order)
+
+            const busy =
+              processingId === order.id
+
+            return (
+              <tr
+                key={String(order.id)}
+                className={`border-b border-slate-100 align-top ${
+                  deleted
+                    ? 'bg-red-50/40 opacity-75'
+                    : 'bg-white hover:bg-slate-50/70'
+                }`}
+              >
+                <TableCell>
+                  <button
+                    type="button"
+                    onClick={() => onView(order)}
+                    className="text-left"
+                  >
+                    <p className="font-extrabold text-indigo-700 hover:underline">
+                      {getOrderReference(order)}
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-400">
+                      {itemCount(order)} item
+                      {itemCount(order) === 1
+                        ? ''
+                        : 's'}
+                    </p>
+                  </button>
+                </TableCell>
+
+                <TableCell>
+                  <p className="font-bold text-slate-900">
+                    {getOrderUserName(order)}
+                  </p>
+
+                  <p className="mt-1 max-w-[210px] truncate text-xs text-slate-400">
+                    {stringValue(
+                      record.user?.email,
+                    ) || 'No email'}
+                  </p>
+                </TableCell>
+
+                <TableCell>
+                  <p className="font-extrabold text-slate-900">
+                    {formatOrderAmount(
+                      getOrderTotal(order),
+                    )}
+                  </p>
+                </TableCell>
+
+                <TableCell>
+                  <span
+                    className={`inline-flex rounded-full px-3 py-1 text-xs font-extrabold capitalize ${paymentClassName(
+                      paymentStatus,
+                    )}`}
+                  >
+                    {paymentStatus ||
+                      'unknown'}
+                  </span>
+                </TableCell>
+
+                <TableCell>
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-extrabold ${statusClassName(
+                      status,
+                    )}`}
+                  >
+                    {statusLabel(status)}
+                  </span>
+
+                  {stringValue(
+                    record.pickup_status,
+                  ) && (
+                    <p className="mt-2 text-xs font-semibold capitalize text-slate-400">
+                      Pickup:{' '}
+                      {stringValue(
+                        record.pickup_status,
+                      ).replaceAll('_', ' ')}
+                    </p>
+                  )}
+                </TableCell>
+
+                <TableCell>
+                  <p className="text-sm font-semibold text-slate-600">
+                    {formatDate(
+                      record.ordered_at ??
+                        record.created_at,
+                    )}
+                  </p>
+                </TableCell>
+
+                <TableCell>
+                  {deleted ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onRestore(order)
+                      }
+                      disabled={busy}
+                      className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-extrabold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {busy ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4" />
+                      )}
+
+                      Restore
+                    </button>
+                  ) : isOrderPlaced(status) ? (
+                    <StatusActionButton
+                      icon={ChefHat}
+                      label="Start Preparing"
+                      className="bg-indigo-600 hover:bg-indigo-700"
+                      onClick={() =>
+                        onPreparing(order)
+                      }
+                    />
+                  ) : status === 'preparing' ? (
+                    <StatusActionButton
+                      icon={PackageCheck}
+                      label="Mark Ready"
+                      className="bg-amber-600 hover:bg-amber-700"
+                      onClick={() =>
+                        onReady(order)
+                      }
+                    />
+                  ) : status === 'ready' ? (
+                    <StatusActionButton
+                      icon={CheckCircle2}
+                      label="Complete Pickup"
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                      onClick={() =>
+                        onComplete(order)
+                      }
+                    />
+                  ) : status ===
+                    'completed' ? (
+                    <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Finished
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-extrabold text-red-700">
+                      <Ban className="h-4 w-4" />
+                      Cancelled
+                    </span>
+                  )}
+                </TableCell>
+
+                <TableCell>
+                  <div className="flex flex-wrap gap-2">
+                    <IconButton
+                      title="View order"
+                      onClick={() =>
+                        onView(order)
+                      }
+                    >
+                      <Eye className="h-4 w-4" />
+                    </IconButton>
+
+                    {!deleted &&
+                      ![
+                        'completed',
+                        'cancelled',
+                        'canceled',
+                      ].includes(status) && (
+                        <IconButton
+                          title="Edit order notes"
+                          onClick={() =>
+                            onEdit(order)
+                          }
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </IconButton>
+                      )}
+
+                    {!deleted &&
+                      canCancel(status) && (
+                        <IconButton
+                          title="Cancel order"
+                          danger
+                          onClick={() =>
+                            onCancel(order)
+                          }
+                        >
+                          <Ban className="h-4 w-4" />
+                        </IconButton>
+                      )}
+
+                    {!deleted &&
+                      [
+                        'cancelled',
+                        'canceled',
+                      ].includes(status) && (
+                        <IconButton
+                          title="Delete cancelled order"
+                          danger
+                          disabled={busy}
+                          onClick={() =>
+                            onDelete(order)
+                          }
+                        >
+                          {busy ? (
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </IconButton>
+                      )}
+                  </div>
+                </TableCell>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function HeaderCell({
+  children,
+}: {
+  children: ReactNode
+}) {
+  return (
+    <th className="px-5 py-4 text-left text-xs font-extrabold uppercase tracking-wider text-slate-500">
+      {children}
+    </th>
+  )
+}
+
+function TableCell({
+  children,
+}: {
+  children: ReactNode
+}) {
+  return (
+    <td className="px-5 py-5">
+      {children}
+    </td>
+  )
+}
+
+function StatusActionButton({
+  icon: Icon,
+  label,
+  className,
+  onClick,
+}: {
+  icon: typeof ChefHat
+  label: string
+  className: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-extrabold text-white transition ${className}`}
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
+  )
+}
+
+function IconButton({
+  title,
+  children,
+  onClick,
+  danger = false,
+  disabled = false,
+}: {
+  title: string
+  children: ReactNode
+  onClick: () => void
+  danger?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex h-9 w-9 items-center justify-center rounded-lg border transition disabled:opacity-50 ${
+        danger
+          ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+      }`}
+    >
+      {children}
+    </button>
   )
 }
