@@ -606,7 +606,7 @@ export default function MenuItemDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-[calc(100vh-80px)] bg-[#f7f3eb] text-[#17221b]">
+      <main className="flex min-h-[70vh] items-center justify-center bg-[#f7f3eb]">
         <div className="text-center">
           <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-[#173e2b]" />
 
@@ -646,7 +646,7 @@ export default function MenuItemDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f3eb] text-[#17221b]">
+    <main className="min-h-screen bg-[#f7f3eb] text-[#17221b] lg:h-screen lg:overflow-hidden">
       <section className="bg-[#102018]">
         <div className="mx-auto flex min-h-40 max-w-7xl items-center px-5 py-8 sm:px-8">
           <div>
@@ -669,10 +669,10 @@ export default function MenuItemDetailPage() {
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-[1500px] gap-6 px-5 py-7 sm:px-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] lg:items-start lg:py-8">
-        <article className="min-w-0 overflow-hidden rounded-[1.75rem] border border-[#ddd4c7] bg-white shadow-[0_18px_55px_rgba(46,38,26,.10)]">
+      <section className="mx-auto grid max-w-[1500px] gap-4 px-4 pb-4 pt-24 sm:px-6 lg:h-screen lg:grid-cols-[0.9fr_1.1fr] lg:overflow-hidden lg:pb-4 lg:pt-24">
+        <article className="overflow-hidden rounded-[1.5rem] border border-[#ddd4c7] bg-white shadow-[0_14px_45px_rgba(46,38,26,.08)] lg:flex lg:h-[calc(100vh-112px)] lg:flex-col">
           <div
-            className="relative h-[360px] bg-cover bg-center sm:h-[440px] lg:h-[500px]"
+            className="relative h-[320px] shrink-0 bg-cover bg-center lg:h-[54%]"
             style={{
               backgroundImage:
                 `url('${item.imageUrl}')`,
@@ -717,7 +717,7 @@ export default function MenuItemDetailPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+          <div className="grid flex-1 gap-3 p-4 sm:grid-cols-2">
             <InfoCard
               icon={ChefHat}
               title="Food information"
@@ -752,10 +752,10 @@ export default function MenuItemDetailPage() {
           </div>
         </article>
 
-        <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+        <aside className="lg:h-[calc(100vh-112px)] lg:self-start">
           <form
             onSubmit={submitGuestOrder}
-            className="rounded-[1.75rem] border border-[#ddd4c7] bg-white p-5 shadow-[0_18px_55px_rgba(46,38,26,.10)] sm:p-7"
+            className="h-full rounded-[1.5rem] border border-[#ddd4c7] bg-white p-5 shadow-[0_14px_45px_rgba(46,38,26,.08)] sm:p-6 lg:overflow-hidden"
           >
             {errorMessage && (
               <div className="mb-5 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -829,7 +829,7 @@ export default function MenuItemDetailPage() {
               </p>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <FormField
                 label="Full name"
                 icon={UserRound}
@@ -846,7 +846,7 @@ export default function MenuItemDetailPage() {
                   maxLength={255}
                   autoComplete="name"
                   placeholder="Your full name"
-                  className="h-12 w-full bg-transparent px-4 text-sm font-medium outline-none"
+                  className="h-11 w-full bg-transparent px-4 text-sm font-medium outline-none"
                 />
               </FormField>
 
@@ -866,7 +866,7 @@ export default function MenuItemDetailPage() {
                   maxLength={50}
                   autoComplete="tel"
                   placeholder="+250 7..."
-                  className="h-12 w-full bg-transparent px-4 text-sm font-medium outline-none"
+                  className="h-11 w-full bg-transparent px-4 text-sm font-medium outline-none"
                 />
               </FormField>
             </div>
@@ -893,11 +893,11 @@ export default function MenuItemDetailPage() {
                 maxLength={255}
                 autoComplete="email"
                 placeholder="name@example.com"
-                className="mt-2 h-12 w-full rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 text-sm font-medium outline-none focus:border-[#173e2b] focus:ring-4 focus:ring-[#173e2b]/10"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 text-sm font-medium outline-none focus:border-[#173e2b] focus:ring-4 focus:ring-[#173e2b]/10"
               />
             </div>
 
-            <div className="mt-4">
+            <div className="mt-5">
               <label
                 htmlFor="delivery-location"
                 className="flex items-center gap-2 text-sm font-extrabold"
@@ -916,19 +916,19 @@ export default function MenuItemDetailPage() {
                 }
                 required
                 maxLength={1500}
-                rows={3}
+                rows={2}
                 placeholder="District, sector, street, building, gate or nearby landmark..."
                 className="mt-2 w-full resize-none rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 py-3 text-sm font-medium outline-none focus:border-[#173e2b] focus:ring-4 focus:ring-[#173e2b]/10"
               />
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-extrabold">
                   Quantity
                 </label>
 
-                <div className="mt-2 flex h-12 items-center justify-between rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-2">
+                <div className="mt-2 flex h-11 items-center justify-between rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-2">
                   <button
                     type="button"
                     onClick={() =>
@@ -1000,12 +1000,12 @@ export default function MenuItemDetailPage() {
                       event.target.value,
                     )
                   }
-                  className="mt-2 h-12 w-full rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 text-sm font-medium outline-none focus:border-[#173e2b]"
+                  className="mt-2 h-11 w-full rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 text-sm font-medium outline-none focus:border-[#173e2b]"
                 />
               </div>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-5">
               <label
                 htmlFor="order-notes"
                 className="text-sm font-extrabold"
@@ -1022,7 +1022,7 @@ export default function MenuItemDetailPage() {
                   )
                 }
                 maxLength={2000}
-                rows={3}
+                rows={2}
                 placeholder="Food preference, allergy, gate instructions or landmark..."
                 className="mt-2 w-full resize-none rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 py-3 text-sm font-medium outline-none focus:border-[#173e2b]"
               />
@@ -1153,16 +1153,16 @@ function InfoCard({
   description: string
 }) {
   return (
-    <div className="rounded-2xl bg-[#f1ece3] p-4">
+    <div className="rounded-xl bg-[#f1ece3] p-3">
       <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-[#173e2b]">
         <Icon className="h-5 w-5" />
       </span>
 
-      <p className="mt-3 text-sm font-extrabold">
+      <p className="mt-2 text-sm font-extrabold">
         {title}
       </p>
 
-      <p className="mt-1.5 text-xs leading-5 text-[#6c746f]">
+      <p className="mt-1 text-[11px] leading-4 text-[#6c746f]">
         {description}
       </p>
     </div>

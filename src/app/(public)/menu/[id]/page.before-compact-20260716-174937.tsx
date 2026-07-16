@@ -606,7 +606,7 @@ export default function MenuItemDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-[calc(100vh-80px)] bg-[#f7f3eb] text-[#17221b]">
+      <main className="flex min-h-[70vh] items-center justify-center bg-[#f7f3eb]">
         <div className="text-center">
           <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-[#173e2b]" />
 
@@ -669,10 +669,10 @@ export default function MenuItemDetailPage() {
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-[1500px] gap-6 px-5 py-7 sm:px-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] lg:items-start lg:py-8">
-        <article className="min-w-0 overflow-hidden rounded-[1.75rem] border border-[#ddd4c7] bg-white shadow-[0_18px_55px_rgba(46,38,26,.10)]">
+      <section className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:py-14">
+        <article className="overflow-hidden rounded-[2rem] border border-[#ddd4c7] bg-white shadow-[0_20px_60px_rgba(46,38,26,.1)]">
           <div
-            className="relative h-[360px] bg-cover bg-center sm:h-[440px] lg:h-[500px]"
+            className="relative min-h-[430px] bg-cover bg-center sm:min-h-[540px]"
             style={{
               backgroundImage:
                 `url('${item.imageUrl}')`,
@@ -685,7 +685,7 @@ export default function MenuItemDetailPage() {
               {item.unit}(s) available
             </span>
 
-            <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+            <div className="absolute inset-x-0 bottom-0 p-6 text-white sm:p-8">
               <div className="flex flex-wrap gap-3">
                 {item.preparationMinutes >
                   0 && (
@@ -706,18 +706,18 @@ export default function MenuItemDetailPage() {
                 )}
               </div>
 
-              <h2 className="mt-3 text-3xl font-black lg:text-4xl">
+              <h2 className="mt-4 text-3xl font-black sm:text-5xl">
                 {item.name}
               </h2>
 
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80">
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/80 sm:text-base">
                 {item.description ||
                   'Freshly prepared and available for delivery.'}
               </p>
             </div>
           </div>
 
-          <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+          <div className="grid gap-6 p-6 sm:p-8 md:grid-cols-2">
             <InfoCard
               icon={ChefHat}
               title="Food information"
@@ -752,13 +752,13 @@ export default function MenuItemDetailPage() {
           </div>
         </article>
 
-        <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+        <aside className="lg:sticky lg:top-24 lg:self-start">
           <form
             onSubmit={submitGuestOrder}
-            className="rounded-[1.75rem] border border-[#ddd4c7] bg-white p-5 shadow-[0_18px_55px_rgba(46,38,26,.10)] sm:p-7"
+            className="rounded-[2rem] border border-[#ddd4c7] bg-white p-6 shadow-[0_20px_60px_rgba(46,38,26,.1)] sm:p-8"
           >
             {errorMessage && (
-              <div className="mb-5 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <div className="mb-5 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 <AlertTriangle className="h-5 w-5 shrink-0" />
 
                 <div>
@@ -774,7 +774,7 @@ export default function MenuItemDetailPage() {
             )}
 
             {orderResult && (
-              <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+              <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
                 <div className="flex gap-3">
                   <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-700" />
 
@@ -814,22 +814,22 @@ export default function MenuItemDetailPage() {
               </div>
             )}
 
-            <div className="border-b border-[#ece5da] pb-3">
+            <div className="border-b border-[#ece5da] pb-6">
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#9b7640]">
                 Guest delivery order
               </p>
 
-              <h2 className="mt-1 text-xl font-black">
+              <h2 className="mt-2 text-2xl font-black">
                 Delivery information
               </h2>
 
-              <p className="mt-1 text-xs leading-5 text-[#6c746f]">
+              <p className="mt-2 text-sm leading-6 text-[#6c746f]">
                 No account or mobile application is required. Submit the
                 order now and pay when the food is delivered.
               </p>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="mt-6 grid gap-5 sm:grid-cols-2">
               <FormField
                 label="Full name"
                 icon={UserRound}
@@ -846,7 +846,7 @@ export default function MenuItemDetailPage() {
                   maxLength={255}
                   autoComplete="name"
                   placeholder="Your full name"
-                  className="h-12 w-full bg-transparent px-4 text-sm font-medium outline-none"
+                  className="h-[52px] w-full bg-transparent px-4 text-sm font-medium outline-none"
                 />
               </FormField>
 
@@ -866,12 +866,12 @@ export default function MenuItemDetailPage() {
                   maxLength={50}
                   autoComplete="tel"
                   placeholder="+250 7..."
-                  className="h-12 w-full bg-transparent px-4 text-sm font-medium outline-none"
+                  className="h-[52px] w-full bg-transparent px-4 text-sm font-medium outline-none"
                 />
               </FormField>
             </div>
 
-            <div className="mt-3">
+            <div className="mt-5">
               <label
                 htmlFor="customer-email"
                 className="flex items-center gap-2 text-sm font-extrabold"
@@ -893,11 +893,11 @@ export default function MenuItemDetailPage() {
                 maxLength={255}
                 autoComplete="email"
                 placeholder="name@example.com"
-                className="mt-2 h-12 w-full rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 text-sm font-medium outline-none focus:border-[#173e2b] focus:ring-4 focus:ring-[#173e2b]/10"
+                className="mt-2 h-[52px] w-full rounded-2xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 text-sm font-medium outline-none focus:border-[#173e2b] focus:ring-4 focus:ring-[#173e2b]/10"
               />
             </div>
 
-            <div className="mt-4">
+            <div className="mt-5">
               <label
                 htmlFor="delivery-location"
                 className="flex items-center gap-2 text-sm font-extrabold"
@@ -918,17 +918,17 @@ export default function MenuItemDetailPage() {
                 maxLength={1500}
                 rows={3}
                 placeholder="District, sector, street, building, gate or nearby landmark..."
-                className="mt-2 w-full resize-none rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 py-3 text-sm font-medium outline-none focus:border-[#173e2b] focus:ring-4 focus:ring-[#173e2b]/10"
+                className="mt-2 w-full resize-none rounded-2xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 py-3 text-sm font-medium outline-none focus:border-[#173e2b] focus:ring-4 focus:ring-[#173e2b]/10"
               />
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="mt-5 grid gap-5 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-extrabold">
                   Quantity
                 </label>
 
-                <div className="mt-2 flex h-12 items-center justify-between rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-2">
+                <div className="mt-2 flex h-[52px] items-center justify-between rounded-2xl border border-[#dcd4c8] bg-[#fbf9f5] px-2">
                   <button
                     type="button"
                     onClick={() =>
@@ -1000,12 +1000,12 @@ export default function MenuItemDetailPage() {
                       event.target.value,
                     )
                   }
-                  className="mt-2 h-12 w-full rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 text-sm font-medium outline-none focus:border-[#173e2b]"
+                  className="mt-2 h-[52px] w-full rounded-2xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 text-sm font-medium outline-none focus:border-[#173e2b]"
                 />
               </div>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-5">
               <label
                 htmlFor="order-notes"
                 className="text-sm font-extrabold"
@@ -1024,11 +1024,11 @@ export default function MenuItemDetailPage() {
                 maxLength={2000}
                 rows={3}
                 placeholder="Food preference, allergy, gate instructions or landmark..."
-                className="mt-2 w-full resize-none rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 py-3 text-sm font-medium outline-none focus:border-[#173e2b]"
+                className="mt-2 w-full resize-none rounded-2xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 py-3 text-sm font-medium outline-none focus:border-[#173e2b]"
               />
             </div>
 
-            <div className="mt-3 space-y-1.5 rounded-xl bg-[#f1ece3] p-3">
+            <div className="mt-6 space-y-3 rounded-2xl bg-[#f1ece3] p-5">
               <SummaryRow
                 label="Unit price"
                 value={formatMoney(
@@ -1061,7 +1061,7 @@ export default function MenuItemDetailPage() {
               </div>
             </div>
 
-            <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] p-3">
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-[#dcd4c8] bg-[#fbf9f5] p-4">
               <input
                 type="checkbox"
                 checked={
@@ -1080,8 +1080,9 @@ export default function MenuItemDetailPage() {
                   Confirm delivery information
                 </span>
 
-                <span className="mt-1 block text-[11px] leading-4 text-[#6c746f]">
-                  Phone and delivery location are correct. Payment is due on delivery.
+                <span className="mt-1 block text-xs leading-5 text-[#6c746f]">
+                  I confirm that my phone number and delivery location are
+                  correct and that payment is due when the food is delivered.
                 </span>
               </span>
             </label>
@@ -1094,7 +1095,7 @@ export default function MenuItemDetailPage() {
                   0 ||
                 !confirmInformation
               }
-              className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#173e2b] px-6 text-sm font-extrabold text-white transition hover:bg-[#24583e] disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-5 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-[#173e2b] px-6 text-sm font-extrabold text-white transition hover:bg-[#24583e] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? (
                 <>
@@ -1109,7 +1110,7 @@ export default function MenuItemDetailPage() {
               )}
             </button>
 
-            <p className="mt-2 text-center text-[11px] leading-4 text-[#7c837f]">
+            <p className="mt-4 text-center text-xs leading-5 text-[#7c837f]">
               This website order does not use or change a Smart Wallet
               balance.
             </p>
@@ -1136,7 +1137,7 @@ function FormField({
         {label}
       </label>
 
-      <div className="mt-2 flex items-center rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] focus-within:border-[#173e2b] focus-within:ring-4 focus-within:ring-[#173e2b]/10">
+      <div className="mt-2 flex items-center rounded-2xl border border-[#dcd4c8] bg-[#fbf9f5] focus-within:border-[#173e2b] focus-within:ring-4 focus-within:ring-[#173e2b]/10">
         {children}
       </div>
     </div>
@@ -1153,16 +1154,16 @@ function InfoCard({
   description: string
 }) {
   return (
-    <div className="rounded-2xl bg-[#f1ece3] p-4">
-      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-[#173e2b]">
+    <div className="rounded-2xl bg-[#f1ece3] p-5">
+      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#173e2b]">
         <Icon className="h-5 w-5" />
       </span>
 
-      <p className="mt-3 text-sm font-extrabold">
+      <p className="mt-4 text-sm font-extrabold">
         {title}
       </p>
 
-      <p className="mt-1.5 text-xs leading-5 text-[#6c746f]">
+      <p className="mt-2 text-xs leading-5 text-[#6c746f]">
         {description}
       </p>
     </div>

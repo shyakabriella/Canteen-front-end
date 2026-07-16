@@ -14,7 +14,7 @@ import {
   Sparkles,
   Star,
   UtensilsCrossed,
-  DeliveryCards,
+  WalletCards,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -67,9 +67,9 @@ const steps = [
     icon: ShoppingBag,
   },
   {
-    title: 'Pay on delivery',
+    title: 'Pay securely',
     description:
-      'Provide your delivery details and pay when the food arrives.',
+      'Complete payment using your Smart Wallet.',
     icon: WalletCards,
   },
   {
@@ -401,10 +401,10 @@ export default function HomePage() {
               </a>
 
               <Link
-                href="#menu"
+                href="/login"
                 className="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-white/25 bg-white/5 px-7 text-sm font-extrabold text-white"
               >
-                Order without an account
+                Login to order
                 <ShoppingBag className="h-4 w-4" />
               </Link>
             </div>
@@ -615,7 +615,7 @@ export default function HomePage() {
               <Experience
                 icon={Star}
                 title="Verified pickup"
-                text="Staff confirm, prepare and deliver the order to your location."
+                text="A unique pickup QR is generated after successful payment."
               />
             </div>
           </div>
@@ -626,8 +626,8 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-5 sm:px-8">
           <SectionTitle
             eyebrow="Simple by design"
-            title="From live menu to home delivery"
-            description="The food, inventory and guest-order services work together."
+            title="From live menu to secure pickup"
+            description="The food, inventory, wallet and order controllers work together."
             centered
           />
 

@@ -1,36 +1,26 @@
 import {
   ArrowRight,
+  Coffee,
+  Menu,
   ShoppingBag,
+  UtensilsCrossed,
 } from 'lucide-react'
 import Link from 'next/link'
 
-interface PublicHeaderProps {
-  overlay?: boolean
-}
-
-export default function PublicHeader({
-  overlay = true,
-}: PublicHeaderProps) {
-  const headerClass = overlay
-    ? `
+export default function PublicHeader() {
+  return (
+    <header
+      className="
         sticky top-0 z-50 -mb-20
         bg-gradient-to-b
-        from-[#07150d]/95
-        via-[#07150d]/65
+        from-[#07150d]/90
+        via-[#07150d]/55
         to-transparent
-        backdrop-blur-[3px]
-      `
-    : `
-        sticky top-0 z-50
-        border-b border-white/10
-        bg-[#07150d]/95
-        shadow-[0_8px_30px_rgba(0,0,0,.15)]
-        backdrop-blur-xl
-      `
-
-  return (
-    <header className={headerClass}>
-      <div className="mx-auto flex h-20 w-full max-w-[1500px] items-center justify-between gap-4 px-5 sm:px-8">
+        backdrop-blur-[2px]
+      "
+    >
+      <div className="mx-auto flex min-h-20 w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-8">
+        {/* Brand */}
         <Link
           href="/"
           className="group flex items-center gap-3"
@@ -50,34 +40,46 @@ export default function PublicHeader({
           </div>
         </Link>
 
+        {/* Desktop navigation */}
         <nav className="hidden items-center gap-8 md:flex">
           <Link
             href="/"
-            className="text-sm font-extrabold text-white/75 transition hover:text-white"
+            className="relative text-sm font-extrabold text-white/75 transition hover:text-white"
           >
             Home
           </Link>
 
           <Link
             href="/#menu"
-            className="text-sm font-extrabold text-white/75 transition hover:text-white"
+            className="relative text-sm font-extrabold text-white/75 transition hover:text-white"
           >
             Menu
           </Link>
 
           <Link
             href="/#how-it-works"
-            className="text-sm font-extrabold text-white/75 transition hover:text-white"
+            className="relative text-sm font-extrabold text-white/75 transition hover:text-white"
           >
             How It Works
           </Link>
         </nav>
 
+        {/* Login button */}
         <Link
           href="/login"
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/20 bg-white px-5 text-sm font-extrabold text-[#102018] shadow-lg shadow-black/10 transition hover:bg-[#d9b779] sm:px-7"
+          className="
+            inline-flex h-12 items-center justify-center gap-2
+            rounded-full border border-white/20
+            bg-white/95 px-5
+            text-sm font-extrabold text-[#102018]
+            shadow-lg shadow-black/10
+            transition
+            hover:bg-[#d9b779]
+            sm:px-6
+          "
         >
           Login
+
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>

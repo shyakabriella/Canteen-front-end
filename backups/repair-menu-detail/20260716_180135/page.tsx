@@ -606,7 +606,7 @@ export default function MenuItemDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-[calc(100vh-80px)] bg-[#f7f3eb] text-[#17221b]">
+      <main className="min-h-[calc(100vh-80px)] bg-[#f7f3eb] text-[#17221b] lg:h-[calc(100vh-80px)] lg:overflow-hidden">
         <div className="text-center">
           <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-[#173e2b]" />
 
@@ -646,7 +646,7 @@ export default function MenuItemDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f3eb] text-[#17221b]">
+    <main className="min-h-screen bg-[#f7f3eb] text-[#17221b] lg:h-screen lg:overflow-hidden">
       <section className="bg-[#102018]">
         <div className="mx-auto flex min-h-40 max-w-7xl items-center px-5 py-8 sm:px-8">
           <div>
@@ -669,10 +669,10 @@ export default function MenuItemDetailPage() {
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-[1500px] gap-6 px-5 py-7 sm:px-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] lg:items-start lg:py-8">
-        <article className="min-w-0 overflow-hidden rounded-[1.75rem] border border-[#ddd4c7] bg-white shadow-[0_18px_55px_rgba(46,38,26,.10)]">
+      <section className="mx-auto grid max-w-[1500px] gap-5 px-5 py-5 sm:px-8 lg:h-full lg:grid-cols-[0.9fr_1.1fr] lg:items-stretch lg:overflow-hidden">
+        <article className="h-full rounded-[1.75rem] border border-[#ddd4c7] bg-white p-5 shadow-[0_18px_55px_rgba(46,38,26,.10)] sm:p-6 lg:overflow-y-auto lg:[scrollbar-width:none] lg:[&::-webkit-scrollbar]:hidden">
           <div
-            className="relative h-[360px] bg-cover bg-center sm:h-[440px] lg:h-[500px]"
+            className="relative h-[360px] shrink-0 bg-cover bg-center sm:h-[460px] lg:h-[54%]"
             style={{
               backgroundImage:
                 `url('${item.imageUrl}')`,
@@ -717,7 +717,7 @@ export default function MenuItemDetailPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+          <div className="grid flex-1 gap-3 overflow-hidden p-4 sm:grid-cols-2 lg:h-[46%]">
             <InfoCard
               icon={ChefHat}
               title="Food information"
@@ -752,10 +752,10 @@ export default function MenuItemDetailPage() {
           </div>
         </article>
 
-        <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+        <aside className="min-h-0 lg:h-full">
           <form
             onSubmit={submitGuestOrder}
-            className="rounded-[1.75rem] border border-[#ddd4c7] bg-white p-5 shadow-[0_18px_55px_rgba(46,38,26,.10)] sm:p-7"
+            className="h-full rounded-[1.5rem] border border-[#ddd4c7] bg-white p-5 shadow-[0_14px_45px_rgba(46,38,26,.08)] sm:p-6 lg:overflow-hidden"
           >
             {errorMessage && (
               <div className="mb-5 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -829,7 +829,7 @@ export default function MenuItemDetailPage() {
               </p>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <FormField
                 label="Full name"
                 icon={UserRound}
@@ -916,13 +916,13 @@ export default function MenuItemDetailPage() {
                 }
                 required
                 maxLength={1500}
-                rows={3}
+                rows={2}
                 placeholder="District, sector, street, building, gate or nearby landmark..."
                 className="mt-2 w-full resize-none rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 py-3 text-sm font-medium outline-none focus:border-[#173e2b] focus:ring-4 focus:ring-[#173e2b]/10"
               />
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-extrabold">
                   Quantity
@@ -1022,7 +1022,7 @@ export default function MenuItemDetailPage() {
                   )
                 }
                 maxLength={2000}
-                rows={3}
+                rows={2}
                 placeholder="Food preference, allergy, gate instructions or landmark..."
                 className="mt-2 w-full resize-none rounded-xl border border-[#dcd4c8] bg-[#fbf9f5] px-4 py-3 text-sm font-medium outline-none focus:border-[#173e2b]"
               />
